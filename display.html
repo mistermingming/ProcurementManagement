@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>发电机品牌展示</title>
+  <style>
+    :root {
+      --bg: #f6f4ef;
+      --fg: #1f1d1a;
+      --card: #ffffff;
+      --accent: #0f6b3f;
+      --muted: #6d655b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "STSong", serif;
+      background: radial-gradient(circle at 80% 10%, #fff6e9, #f2efe8 55%, #efeae1 100%);
+      color: var(--fg);
+    }
+    .wrap {
+      max-width: 720px;
+      margin: 48px auto;
+      padding: 0 20px 48px;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 26px;
+      font-weight: 600;
+    }
+    p.sub {
+      margin: 0 0 20px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid #e3ded4;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+    }
+    button {
+      width: 100%;
+      padding: 12px 14px;
+      font-size: 15px;
+      border-radius: 10px;
+      border: none;
+      background: var(--accent);
+      color: #fff;
+      cursor: pointer;
+    }
+    button:hover { opacity: 0.92; }
+    .latest {
+      margin: 16px 0 12px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px dashed #d2cbbb;
+      background: #f7f6f2;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+    }
+    ul {
+      margin: 12px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+    li {
+      padding: 10px 12px;
+      border-bottom: 1px solid #eee7dc;
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+    }
+    .link {
+      display: inline-block;
+      margin-top: 16px;
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>发电机品牌展示</h1>
+    <p class="sub">展示已录入的品牌记录。</p>
+
+    <div class="card">
+      <button id="refresh" type="button">刷新数据</button>
+      <div class="latest" id="latest">暂无记录</div>
+      <ul id="list"></ul>
+      <a class="link" href="/entry.html">去录入品牌</a>
+    </div>
+  </div>
+
+  <script>
+    const latest = document.getElementById("latest");
+    const list = document.getElementById("list");
+    const refresh = document.getElementById("refresh");
+
+    function render(items) {
+      if (!items.length) {
+        latest.textContent = "暂无记录";
+        list.innerHTML = "";
+        return;
+      }
+      latest.textContent = "最新录入：" + items[0].brand;
+      list.innerHTML = items
+        .map((item) =>
+          "<li><span>" + item.brand + "</span><span>" + item.created_at + "</span></li>"
+        )
+        .join("");
+    }
+
+    async function loadData() {
+      try {
+        const res = await fetch("/api/brands");
+        const data = await res.json();
+        render(data.items || []);
+      } catch (err) {
+        latest.textContent = "加载失败";
+        list.innerHTML = "";
+      }
+    }
+
+    refresh.addEventListener("click", loadData);
+    loadData();
+  </script>
+</body>
+</html>

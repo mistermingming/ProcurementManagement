@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>发电机品牌录入</title>
+  <style>
+    :root {
+      --bg: #f6f4ef;
+      --fg: #1f1d1a;
+      --card: #ffffff;
+      --accent: #0f6b3f;
+      --muted: #6d655b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "STSong", serif;
+      background: radial-gradient(circle at 20% 20%, #fff6e9, #f2efe8 55%, #efeae1 100%);
+      color: var(--fg);
+    }
+    .wrap {
+      max-width: 720px;
+      margin: 48px auto;
+      padding: 0 20px 48px;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 26px;
+      font-weight: 600;
+    }
+    p.sub {
+      margin: 0 0 20px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid #e3ded4;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+    }
+    label {
+      display: block;
+      font-size: 14px;
+      margin-bottom: 8px;
+      color: var(--muted);
+    }
+    input, button {
+      width: 100%;
+      padding: 12px 14px;
+      font-size: 15px;
+      border-radius: 10px;
+      border: 1px solid #d8d2c6;
+      background: #fff;
+    }
+    button {
+      margin-top: 12px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover { opacity: 0.92; }
+    .msg {
+      margin-top: 16px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px dashed #d2cbbb;
+      background: #f7f6f2;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+    }
+    .link {
+      display: inline-block;
+      margin-top: 16px;
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>发电机品牌录入</h1>
+    <p class="sub">选择品牌后点击录入，数据将保存到本地数据库。</p>
+
+    <div class="card">
+      <label for="brand">发电机品牌</label>
+      <input id="brand" type="text" placeholder="请输入品牌名称" />
+
+      <button id="submit" type="button">录入</button>
+
+      <div class="msg" id="msg">尚未录入</div>
+      <a class="link" href="/display.html">查看已录入品牌</a>
+    </div>
+  </div>
+
+  <script>
+    const brand = document.getElementById("brand");
+    const submit = document.getElementById("submit");
+    const msg = document.getElementById("msg");
+
+    async function submitBrand() {
+      const value = brand.value.trim();
+      if (!value) {
+        msg.textContent = "请先输入品牌";
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/brands", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ brand: value })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          msg.textContent = "录入失败：" + (data.error || "unknown");
+          return;
+        }
+        msg.textContent = "已录入：" + data.brand;
+        brand.value = "";
+      } catch (err) {
+        msg.textContent = "网络错误，未能录入";
+      }
+    }
+
+    submit.addEventListener("click", submitBrand);
+  </script>
+</body>
+</html>
