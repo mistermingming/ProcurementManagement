@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>发电机报价录入</title>
+  <title>报价管理录入</title>
   <style>
     :root {
       --bg: #f6f4ef;
@@ -20,7 +20,7 @@
       color: var(--fg);
     }
     .wrap {
-      max-width: 720px;
+      max-width: 860px;
       margin: 48px auto;
       padding: 0 20px 48px;
     }
@@ -40,20 +40,6 @@
       border-radius: 12px;
       padding: 20px;
       box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
-    }
-    label {
-      display: block;
-      font-size: 14px;
-      margin-bottom: 8px;
-      color: var(--muted);
-    }
-    input, button {
-      width: 100%;
-      padding: 12px 14px;
-      font-size: 15px;
-      border-radius: 10px;
-      border: 1px solid #d8d2c6;
-      background: #fff;
     }
     .section {
       border: 1px dashed #e2dbcf;
@@ -97,14 +83,23 @@
     .row.pair {
       grid-template-columns: 1.2fr 0.8fr;
     }
-    button {
+    input, button {
+      width: 100%;
+      padding: 10px 12px;
+      font-size: 14px;
+      border-radius: 10px;
+      border: 1px solid #d8d2c6;
+      background: #fff;
+    }
+    button.primary {
       margin-top: 12px;
       background: var(--accent);
       color: #fff;
       border: none;
       cursor: pointer;
+      font-size: 15px;
     }
-    button:hover { opacity: 0.92; }
+    button.primary:hover { opacity: 0.92; }
     .msg {
       margin-top: 16px;
       padding: 12px 14px;
@@ -122,12 +117,19 @@
       text-decoration: none;
       font-size: 14px;
     }
+    @media (max-width: 720px) {
+      .row.engine,
+      .row.generator,
+      .row.pair {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>发电机报价录入</h1>
-    <p class="sub">手动录入各项名称与价格，数据将保存到本地数据库。</p>
+    <h1>报价管理录入</h1>
+    <p class="sub">录入配置材料与价格，保存为报价配置库。</p>
 
     <div class="card">
       <div class="section" data-section="engine">
@@ -178,54 +180,22 @@
         <div class="rows" id="colorRows"></div>
       </div>
 
-      <button id="submit" type="button">录入报价</button>
+      <button class="primary" id="submit" type="button">保存全部</button>
 
       <div class="msg" id="msg">尚未录入</div>
-      <a class="link" href="/display.html">查看已录入报价</a>
+      <a class="link" href="/quote.html">去生成报价</a>
     </div>
   </div>
 
   <script>
-    const submit = document.getElementById("submit");
-    const msg = document.getElementById("msg");
     const engineRows = document.getElementById("engineRows");
     const generatorRows = document.getElementById("generatorRows");
     const radiatorRows = document.getElementById("radiatorRows");
     const controlRows = document.getElementById("controlRows");
     const baseRows = document.getElementById("baseRows");
     const colorRows = document.getElementById("colorRows");
-
-    function buildRow(section) {
-      const row = document.createElement("div");
-      if (section === "engine") {
-        row.className = "row engine";
-        row.appendChild(buildInput("engine_category", "请输入品类"));
-        row.appendChild(buildInput("engine_model", "请输入型号"));
-        row.appendChild(buildInput("price", "请输入价格", "number"));
-      } else if (section === "generator") {
-        row.className = "row generator";
-        row.appendChild(buildInput("generator_category", "请输入品类"));
-        row.appendChild(buildInput("generator_power", "请输入功率"));
-        row.appendChild(buildInput("price", "请输入价格", "number"));
-      } else {
-        row.className = "row pair";
-        const labelMap = {
-          radiator: "请输入类型名称",
-          control: "请输入类型名称",
-          base: "请输入类型名称",
-          color: "请输入颜色名称"
-        };
-        const fieldMap = {
-          radiator: "radiator_type",
-          control: "control_system",
-          base: "base_type",
-          color: "unit_color"
-        };
-        row.appendChild(buildInput(fieldMap[section], labelMap[section]));
-        row.appendChild(buildInput("price", "请输入价格", "number"));
-      }
-      return row;
-    }
+    const submit = document.getElementById("submit");
+    const msg = document.getElementById("msg");
 
     function buildInput(field, placeholder, type = "text") {
       const input = document.createElement("input");
@@ -237,6 +207,32 @@
         input.min = "0";
       }
       return input;
+    }
+
+    function buildRow(section) {
+      const row = document.createElement("div");
+      if (section === "engine") {
+        row.className = "row engine";
+        row.appendChild(buildInput("category", "发动机品类"));
+        row.appendChild(buildInput("model", "发动机型号"));
+        row.appendChild(buildInput("price", "价格", "number"));
+      } else if (section === "generator") {
+        row.className = "row generator";
+        row.appendChild(buildInput("category", "发电机品类"));
+        row.appendChild(buildInput("power", "发电机功率"));
+        row.appendChild(buildInput("price", "价格", "number"));
+      } else {
+        row.className = "row pair";
+        const labelMap = {
+          radiator: "水箱类型",
+          control: "控制系统",
+          base: "底座类型",
+          color: "整机颜色"
+        };
+        row.appendChild(buildInput("name", labelMap[section]));
+        row.appendChild(buildInput("price", "价格", "number"));
+      }
+      return row;
     }
 
     function addRow(section) {
@@ -251,103 +247,115 @@
       targetMap[section].appendChild(buildRow(section));
     }
 
-    function collectRows(container, nameField, extraField) {
+    function collectRows(container, requiredFields) {
       const rows = Array.from(container.querySelectorAll(".row"));
-      if (!rows.length) {
-        return { ok: false };
-      }
       const items = [];
       for (const row of rows) {
-        const nameInput = row.querySelector(`[data-field="${nameField}"]`);
-        const extraInput = extraField
-          ? row.querySelector(`[data-field="${extraField}"]`)
-          : null;
-        const priceInput = row.querySelector('[data-field="price"]');
-        const name = nameInput.value.trim();
-        const extra = extraInput ? extraInput.value.trim() : null;
-        const priceValue = priceInput.value.trim();
-        if (!name || (extraField && !extra) || !priceValue) {
-          return { ok: false };
+        const values = {};
+        let hasAny = false;
+        for (const field of requiredFields) {
+          const input = row.querySelector(`[data-field="${field}"]`);
+          const value = input.value.trim();
+          values[field] = value;
+          if (value) {
+            hasAny = true;
+          }
         }
-        items.push(
-          extraField
-            ? {
-                [nameField]: name,
-                [extraField]: extra,
-                price: Number(priceValue)
-              }
-            : {
-                [nameField]: name,
-                price: Number(priceValue)
-              }
-        );
+        const priceInput = row.querySelector('[data-field="price"]');
+        const priceValue = priceInput.value.trim();
+        if (priceValue) {
+          hasAny = true;
+        }
+
+        if (!hasAny) {
+          continue;
+        }
+
+        for (const field of requiredFields) {
+          if (!values[field]) {
+            return { ok: false, error: "请完善所有名称字段" };
+          }
+        }
+        if (!priceValue) {
+          return { ok: false, error: "请完善所有价格" };
+        }
+
+        const item = { price: Number(priceValue) };
+        for (const field of requiredFields) {
+          item[field] = values[field];
+        }
+        items.push(item);
       }
       return { ok: true, items };
     }
 
-    async function submitQuote() {
-      const engine = collectRows(engineRows, "engine_category", "engine_model");
+    async function submitAll() {
+      const engine = collectRows(engineRows, ["category", "model"]);
       if (!engine.ok) {
-        msg.textContent = "请完善发动机信息与价格";
+        msg.textContent = "发动机：" + engine.error;
         return;
       }
-      const generator = collectRows(
-        generatorRows,
-        "generator_category",
-        "generator_power"
-      );
+      const generator = collectRows(generatorRows, ["category", "power"]);
       if (!generator.ok) {
-        msg.textContent = "请完善发电机信息与价格";
+        msg.textContent = "发电机：" + generator.error;
         return;
       }
-      const radiator = collectRows(radiatorRows, "radiator_type");
+      const radiator = collectRows(radiatorRows, ["name"]);
       if (!radiator.ok) {
-        msg.textContent = "请完善水箱信息与价格";
+        msg.textContent = "水箱：" + radiator.error;
         return;
       }
-      const control = collectRows(controlRows, "control_system");
+      const control = collectRows(controlRows, ["name"]);
       if (!control.ok) {
-        msg.textContent = "请完善控制系统信息与价格";
+        msg.textContent = "控制系统：" + control.error;
         return;
       }
-      const base = collectRows(baseRows, "base_type");
+      const base = collectRows(baseRows, ["name"]);
       if (!base.ok) {
-        msg.textContent = "请完善底座信息与价格";
+        msg.textContent = "底座：" + base.error;
         return;
       }
-      const color = collectRows(colorRows, "unit_color");
+      const color = collectRows(colorRows, ["name"]);
       if (!color.ok) {
-        msg.textContent = "请完善整机颜色信息与价格";
+        msg.textContent = "整机颜色：" + color.error;
         return;
       }
 
       const payload = {
-        engine_items: engine.items,
-        generator_items: generator.items,
-        radiator_items: radiator.items,
-        control_items: control.items,
-        base_items: base.items,
-        color_items: color.items
+        engine: engine.items,
+        generator: generator.items,
+        radiator: radiator.items,
+        control: control.items,
+        base: base.items,
+        color: color.items
       };
 
+      const totalCount =
+        engine.items.length +
+        generator.items.length +
+        radiator.items.length +
+        control.items.length +
+        base.items.length +
+        color.items.length;
+      if (!totalCount) {
+        msg.textContent = "请至少录入一项";
+        return;
+      }
+
       try {
-        const res = await fetch("/api/quotes", {
+        const res = await fetch("/api/options", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         });
         const data = await res.json();
         if (!res.ok) {
-          msg.textContent = "录入失败：" + (data.error || "unknown");
+          msg.textContent = "保存失败：" + (data.error || "unknown");
           return;
         }
-        msg.textContent = "已录入报价";
-        engineRows.innerHTML = "";
-        generatorRows.innerHTML = "";
-        radiatorRows.innerHTML = "";
-        controlRows.innerHTML = "";
-        baseRows.innerHTML = "";
-        colorRows.innerHTML = "";
+        msg.textContent = "已保存，新增 " + data.inserted + " 条";
+        [engineRows, generatorRows, radiatorRows, controlRows, baseRows, colorRows]
+          .forEach((container) => { container.innerHTML = ""; });
         addRow("engine");
         addRow("generator");
         addRow("radiator");
@@ -355,17 +363,15 @@
         addRow("base");
         addRow("color");
       } catch (err) {
-        msg.textContent = "网络错误，未能录入";
+        msg.textContent = "网络错误，未能保存";
       }
     }
 
-    submit.addEventListener("click", submitQuote);
+    submit.addEventListener("click", submitAll);
     document.querySelectorAll(".add-btn").forEach((button) => {
-      button.addEventListener("click", () => {
-        const section = button.dataset.add;
-        addRow(section);
-      });
+      button.addEventListener("click", () => addRow(button.dataset.add));
     });
+
     addRow("engine");
     addRow("generator");
     addRow("radiator");
