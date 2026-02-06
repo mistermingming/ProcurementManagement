@@ -47,13 +47,55 @@
       margin-bottom: 8px;
       color: var(--muted);
     }
-    input, select, button {
+    input, button {
       width: 100%;
       padding: 12px 14px;
       font-size: 15px;
       border-radius: 10px;
       border: 1px solid #d8d2c6;
       background: #fff;
+    }
+    .section {
+      border: 1px dashed #e2dbcf;
+      border-radius: 12px;
+      padding: 12px;
+      background: #fbf9f4;
+      margin-bottom: 14px;
+    }
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+    .add-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      border: 1px solid #d8d2c6;
+      background: #fff;
+      color: var(--accent);
+      font-weight: 600;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+    }
+    .rows {
+      display: grid;
+      gap: 10px;
+    }
+    .row {
+      display: grid;
+      gap: 10px;
+    }
+    .row.engine,
+    .row.generator {
+      grid-template-columns: 1.2fr 1.2fr 0.8fr;
+    }
+    .row.pair {
+      grid-template-columns: 1.2fr 0.8fr;
     }
     button {
       margin-top: 12px;
@@ -85,50 +127,56 @@
 <body>
   <div class="wrap">
     <h1>发电机报价录入</h1>
-    <p class="sub">选择下拉项并录入价格，数据将保存到本地数据库。</p>
+    <p class="sub">手动录入各项名称与价格，数据将保存到本地数据库。</p>
 
     <div class="card">
-      <label for="engineCategory">发动机品类</label>
-      <select id="engineCategory"></select>
+      <div class="section" data-section="engine">
+        <div class="section-header">
+          <span>发动机</span>
+          <button type="button" class="add-btn" data-add="engine">+</button>
+        </div>
+        <div class="rows" id="engineRows"></div>
+      </div>
 
-      <label for="engineModel" style="margin-top: 12px;">发动机型号</label>
-      <select id="engineModel"></select>
+      <div class="section" data-section="generator">
+        <div class="section-header">
+          <span>发电机</span>
+          <button type="button" class="add-btn" data-add="generator">+</button>
+        </div>
+        <div class="rows" id="generatorRows"></div>
+      </div>
 
-      <label for="radiatorType" style="margin-top: 12px;">水箱类型</label>
-      <select id="radiatorType"></select>
+      <div class="section" data-section="radiator">
+        <div class="section-header">
+          <span>水箱</span>
+          <button type="button" class="add-btn" data-add="radiator">+</button>
+        </div>
+        <div class="rows" id="radiatorRows"></div>
+      </div>
 
-      <label for="generatorCategory" style="margin-top: 12px;">发电机品类</label>
-      <select id="generatorCategory"></select>
+      <div class="section" data-section="control">
+        <div class="section-header">
+          <span>控制系统</span>
+          <button type="button" class="add-btn" data-add="control">+</button>
+        </div>
+        <div class="rows" id="controlRows"></div>
+      </div>
 
-      <label for="generatorPower" style="margin-top: 12px;">发电机功率</label>
-      <select id="generatorPower"></select>
+      <div class="section" data-section="base">
+        <div class="section-header">
+          <span>底座</span>
+          <button type="button" class="add-btn" data-add="base">+</button>
+        </div>
+        <div class="rows" id="baseRows"></div>
+      </div>
 
-      <label for="controlSystem" style="margin-top: 12px;">控制系统</label>
-      <select id="controlSystem"></select>
-
-      <label for="baseType" style="margin-top: 12px;">底座类型</label>
-      <select id="baseType"></select>
-
-      <label for="unitColor" style="margin-top: 12px;">整机颜色</label>
-      <select id="unitColor"></select>
-
-      <label for="priceEngineCombo" style="margin-top: 16px;">发动机（品类+型号）价格</label>
-      <input id="priceEngineCombo" type="number" step="0.01" min="0" placeholder="请输入价格" />
-
-      <label for="priceGeneratorCombo" style="margin-top: 12px;">发电机（品类+功率）价格</label>
-      <input id="priceGeneratorCombo" type="number" step="0.01" min="0" placeholder="请输入价格" />
-
-      <label for="priceRadiator" style="margin-top: 12px;">水箱类型价格</label>
-      <input id="priceRadiator" type="number" step="0.01" min="0" placeholder="请输入价格" />
-
-      <label for="priceControl" style="margin-top: 12px;">控制系统价格</label>
-      <input id="priceControl" type="number" step="0.01" min="0" placeholder="请输入价格" />
-
-      <label for="priceBase" style="margin-top: 12px;">底座类型价格</label>
-      <input id="priceBase" type="number" step="0.01" min="0" placeholder="请输入价格" />
-
-      <label for="priceColor" style="margin-top: 12px;">整机颜色价格</label>
-      <input id="priceColor" type="number" step="0.01" min="0" placeholder="请输入价格" />
+      <div class="section" data-section="color">
+        <div class="section-header">
+          <span>整机颜色</span>
+          <button type="button" class="add-btn" data-add="color">+</button>
+        </div>
+        <div class="rows" id="colorRows"></div>
+      </div>
 
       <button id="submit" type="button">录入报价</button>
 
@@ -138,112 +186,149 @@
   </div>
 
   <script>
-    const engineCategory = document.getElementById("engineCategory");
-    const engineModel = document.getElementById("engineModel");
-    const radiatorType = document.getElementById("radiatorType");
-    const generatorCategory = document.getElementById("generatorCategory");
-    const generatorPower = document.getElementById("generatorPower");
-    const controlSystem = document.getElementById("controlSystem");
-    const baseType = document.getElementById("baseType");
-    const unitColor = document.getElementById("unitColor");
-    const priceEngineCombo = document.getElementById("priceEngineCombo");
-    const priceGeneratorCombo = document.getElementById("priceGeneratorCombo");
-    const priceRadiator = document.getElementById("priceRadiator");
-    const priceControl = document.getElementById("priceControl");
-    const priceBase = document.getElementById("priceBase");
-    const priceColor = document.getElementById("priceColor");
     const submit = document.getElementById("submit");
     const msg = document.getElementById("msg");
+    const engineRows = document.getElementById("engineRows");
+    const generatorRows = document.getElementById("generatorRows");
+    const radiatorRows = document.getElementById("radiatorRows");
+    const controlRows = document.getElementById("controlRows");
+    const baseRows = document.getElementById("baseRows");
+    const colorRows = document.getElementById("colorRows");
 
-    function setOptions(select, items) {
-      select.innerHTML = "";
-      const placeholder = document.createElement("option");
-      placeholder.value = "";
-      placeholder.textContent = items.length ? "请选择" : "暂无可选项";
-      select.appendChild(placeholder);
-      for (const item of items) {
-        const option = document.createElement("option");
-        option.value = item;
-        option.textContent = item;
-        select.appendChild(option);
+    function buildRow(section) {
+      const row = document.createElement("div");
+      if (section === "engine") {
+        row.className = "row engine";
+        row.appendChild(buildInput("engine_category", "请输入品类"));
+        row.appendChild(buildInput("engine_model", "请输入型号"));
+        row.appendChild(buildInput("price", "请输入价格", "number"));
+      } else if (section === "generator") {
+        row.className = "row generator";
+        row.appendChild(buildInput("generator_category", "请输入品类"));
+        row.appendChild(buildInput("generator_power", "请输入功率"));
+        row.appendChild(buildInput("price", "请输入价格", "number"));
+      } else {
+        row.className = "row pair";
+        const labelMap = {
+          radiator: "请输入类型名称",
+          control: "请输入类型名称",
+          base: "请输入类型名称",
+          color: "请输入颜色名称"
+        };
+        const fieldMap = {
+          radiator: "radiator_type",
+          control: "control_system",
+          base: "base_type",
+          color: "unit_color"
+        };
+        row.appendChild(buildInput(fieldMap[section], labelMap[section]));
+        row.appendChild(buildInput("price", "请输入价格", "number"));
       }
+      return row;
     }
 
-    async function loadOptions() {
-      try {
-        const res = await fetch("/api/options");
-        const data = await res.json();
-        setOptions(engineCategory, data.engine_category || []);
-        setOptions(engineModel, data.engine_model || []);
-        setOptions(radiatorType, data.radiator_type || []);
-        setOptions(generatorCategory, data.generator_category || []);
-        setOptions(generatorPower, data.generator_power || []);
-        setOptions(controlSystem, data.control_system || []);
-        setOptions(baseType, data.base_type || []);
-        setOptions(unitColor, data.unit_color || []);
-        const lists = [
-          data.engine_category || [],
-          data.engine_model || [],
-          data.radiator_type || [],
-          data.generator_category || [],
-          data.generator_power || [],
-          data.control_system || [],
-          data.base_type || [],
-          data.unit_color || []
-        ];
-        const missing = lists.some((list) => !list.length);
-        if (missing) {
-          msg.textContent = "部分选项为空，请先补充基础数据";
-          submit.disabled = true;
-        } else {
-          submit.disabled = false;
-        }
-      } catch (err) {
-        msg.textContent = "加载选项失败";
+    function buildInput(field, placeholder, type = "text") {
+      const input = document.createElement("input");
+      input.type = type;
+      input.placeholder = placeholder;
+      input.dataset.field = field;
+      if (type === "number") {
+        input.step = "0.01";
+        input.min = "0";
       }
+      return input;
+    }
+
+    function addRow(section) {
+      const targetMap = {
+        engine: engineRows,
+        generator: generatorRows,
+        radiator: radiatorRows,
+        control: controlRows,
+        base: baseRows,
+        color: colorRows
+      };
+      targetMap[section].appendChild(buildRow(section));
+    }
+
+    function collectRows(container, nameField, extraField) {
+      const rows = Array.from(container.querySelectorAll(".row"));
+      if (!rows.length) {
+        return { ok: false };
+      }
+      const items = [];
+      for (const row of rows) {
+        const nameInput = row.querySelector(`[data-field="${nameField}"]`);
+        const extraInput = extraField
+          ? row.querySelector(`[data-field="${extraField}"]`)
+          : null;
+        const priceInput = row.querySelector('[data-field="price"]');
+        const name = nameInput.value.trim();
+        const extra = extraInput ? extraInput.value.trim() : null;
+        const priceValue = priceInput.value.trim();
+        if (!name || (extraField && !extra) || !priceValue) {
+          return { ok: false };
+        }
+        items.push(
+          extraField
+            ? {
+                [nameField]: name,
+                [extraField]: extra,
+                price: Number(priceValue)
+              }
+            : {
+                [nameField]: name,
+                price: Number(priceValue)
+              }
+        );
+      }
+      return { ok: true, items };
     }
 
     async function submitQuote() {
-      const payload = {
-        engine_category: engineCategory.value,
-        engine_model: engineModel.value,
-        radiator_type: radiatorType.value,
-        generator_category: generatorCategory.value,
-        generator_power: generatorPower.value,
-        control_system: controlSystem.value,
-        base_type: baseType.value,
-        unit_color: unitColor.value,
-        price_engine_combo: Number(priceEngineCombo.value),
-        price_generator_combo: Number(priceGeneratorCombo.value),
-        price_radiator: Number(priceRadiator.value),
-        price_control: Number(priceControl.value),
-        price_base: Number(priceBase.value),
-        price_color: Number(priceColor.value)
-      };
+      const engine = collectRows(engineRows, "engine_category", "engine_model");
+      if (!engine.ok) {
+        msg.textContent = "请完善发动机信息与价格";
+        return;
+      }
+      const generator = collectRows(
+        generatorRows,
+        "generator_category",
+        "generator_power"
+      );
+      if (!generator.ok) {
+        msg.textContent = "请完善发电机信息与价格";
+        return;
+      }
+      const radiator = collectRows(radiatorRows, "radiator_type");
+      if (!radiator.ok) {
+        msg.textContent = "请完善水箱信息与价格";
+        return;
+      }
+      const control = collectRows(controlRows, "control_system");
+      if (!control.ok) {
+        msg.textContent = "请完善控制系统信息与价格";
+        return;
+      }
+      const base = collectRows(baseRows, "base_type");
+      if (!base.ok) {
+        msg.textContent = "请完善底座信息与价格";
+        return;
+      }
+      const color = collectRows(colorRows, "unit_color");
+      if (!color.ok) {
+        msg.textContent = "请完善整机颜色信息与价格";
+        return;
+      }
 
-      if (!payload.engine_category || !payload.engine_model) {
-        msg.textContent = "请先选择发动机品类和型号";
-        return;
-      }
-      if (!payload.generator_category || !payload.generator_power) {
-        msg.textContent = "请先选择发电机品类和功率";
-        return;
-      }
-      if (!payload.radiator_type || !payload.control_system || !payload.base_type || !payload.unit_color) {
-        msg.textContent = "请先选择全部配置项";
-        return;
-      }
-      if (
-        !priceEngineCombo.value ||
-        !priceGeneratorCombo.value ||
-        !priceRadiator.value ||
-        !priceControl.value ||
-        !priceBase.value ||
-        !priceColor.value
-      ) {
-        msg.textContent = "请先输入全部价格";
-        return;
-      }
+      const payload = {
+        engine_items: engine.items,
+        generator_items: generator.items,
+        radiator_items: radiator.items,
+        control_items: control.items,
+        base_items: base.items,
+        color_items: color.items
+      };
 
       try {
         const res = await fetch("/api/quotes", {
@@ -257,20 +342,36 @@
           return;
         }
         msg.textContent = "已录入报价";
-        priceEngineCombo.value = "";
-        priceGeneratorCombo.value = "";
-        priceRadiator.value = "";
-        priceControl.value = "";
-        priceBase.value = "";
-        priceColor.value = "";
-        loadOptions();
+        engineRows.innerHTML = "";
+        generatorRows.innerHTML = "";
+        radiatorRows.innerHTML = "";
+        controlRows.innerHTML = "";
+        baseRows.innerHTML = "";
+        colorRows.innerHTML = "";
+        addRow("engine");
+        addRow("generator");
+        addRow("radiator");
+        addRow("control");
+        addRow("base");
+        addRow("color");
       } catch (err) {
         msg.textContent = "网络错误，未能录入";
       }
     }
 
     submit.addEventListener("click", submitQuote);
-    loadOptions();
+    document.querySelectorAll(".add-btn").forEach((button) => {
+      button.addEventListener("click", () => {
+        const section = button.dataset.add;
+        addRow(section);
+      });
+    });
+    addRow("engine");
+    addRow("generator");
+    addRow("radiator");
+    addRow("control");
+    addRow("base");
+    addRow("color");
   </script>
 </body>
 </html>

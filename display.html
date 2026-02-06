@@ -62,28 +62,62 @@
       display: flex;
       align-items: center;
     }
-    .table-wrap {
-      overflow-x: auto;
+    .record {
       border: 1px solid #eee7dc;
-      border-radius: 10px;
+      border-radius: 12px;
       background: #fff;
+      padding: 12px;
+      margin-top: 12px;
     }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      min-width: 760px;
-      font-size: 14px;
-    }
-    th, td {
-      padding: 10px 12px;
-      border-bottom: 1px solid #eee7dc;
-      text-align: left;
-      white-space: nowrap;
-    }
-    th {
-      background: #faf7f1;
+    .record-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
       color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .sections {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .section {
+      border: 1px dashed #e2dbcf;
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: #fbf9f4;
+      min-height: 70px;
+    }
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .section-plus {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      background: #e6f1ea;
+      color: var(--accent);
+      text-decoration: none;
       font-weight: 600;
+      line-height: 1;
+    }
+    .section-body {
+      font-size: 14px;
+      color: var(--fg);
+      display: grid;
+      gap: 4px;
+    }
+    @media (max-width: 640px) {
+      .sections { grid-template-columns: 1fr; }
     }
     .link {
       display: inline-block;
@@ -102,23 +136,7 @@
     <div class="card">
       <button id="refresh" type="button">刷新数据</button>
       <div class="latest" id="latest">暂无记录</div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>发动机品类</th>
-              <th>发动机型号</th>
-              <th>水箱类型</th>
-              <th>发电机品类</th>
-              <th>发电机功率</th>
-              <th>控制系统</th>
-              <th>底座类型</th>
-              <th>整机颜色</th>
-            </tr>
-          </thead>
-          <tbody id="list"></tbody>
-        </table>
-      </div>
+      <div id="list"></div>
       <a class="link" href="/entry.html">去录入报价</a>
     </div>
   </div>

@@ -36,6 +36,19 @@ def init_db():
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS quote_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                quote_id INTEGER NOT NULL,
+                section TEXT NOT NULL,
+                name TEXT NOT NULL,
+                extra TEXT,
+                price REAL NOT NULL,
+                FOREIGN KEY (quote_id) REFERENCES quotes(id)
+            )
+            """
+        )
         conn.commit()
 
 
@@ -77,7 +90,7 @@ def list_quotes():
 def insert_quote(payload):
     created_at = time.strftime("%Y-%m-%d %H:%M:%S")
     with sqlite3.connect(DB_PATH) as conn:
-        conn.execute(
+        cursor = conn.execute(
             """
             INSERT INTO quotes (
                 engine_category,
@@ -116,6 +129,25 @@ def insert_quote(payload):
                 created_at,
             ),
         )
+        quote_id = cursor.lastrowid
+        items = payload.get("items", [])
+        if items:
+            conn.executemany(
+                """
+                INSERT INTO quote_items (quote_id, section, name, extra, price)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        quote_id,
+                        item["section"],
+                        item["name"],
+                        item.get("extra"),
+                        item["price"],
+                    )
+                    for item in items
+                ],
+            )
         conn.commit()
 
 
@@ -180,6 +212,160 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             payload = json.loads(body.decode("utf-8"))
         except json.JSONDecodeError:
             self._send_json(400, {"error": "invalid_json"})
+            return
+
+        if "engine_items" in payload:
+            def parse_items(items, name_key, extra_key=None):
+                if not isinstance(items, list) or not items:
+                    return None, "invalid_items"
+                parsed = []
+                for item in items:
+                    if not isinstance(item, dict):
+                        return None, "invalid_items"
+                    name = item.get(name_key)
+                    extra = item.get(extra_key) if extra_key else None
+                    price = item.get("price")
+                    if not isinstance(name, str) or not name.strip():
+                        return None, "invalid_items"
+                    if extra_key:
+                        if not isinstance(extra, str) or not extra.strip():
+                            return None, "invalid_items"
+                        extra = extra.strip()
+                    try:
+                        price_value = float(price)
+                    except (TypeError, ValueError):
+                        return None, "invalid_items"
+                    if price_value < 0:
+                        return None, "invalid_items"
+                    parsed.append(
+                        {
+                            "name": name.strip(),
+                            "extra": extra,
+                            "price": price_value,
+                        }
+                    )
+                return parsed, None
+
+            engine_items, err = parse_items(
+                payload.get("engine_items"), "engine_category", "engine_model"
+            )
+            if err:
+                self._send_json(400, {"error": "invalid_engine_items"})
+                return
+
+            generator_items, err = parse_items(
+                payload.get("generator_items"), "generator_category", "generator_power"
+            )
+            if err:
+                self._send_json(400, {"error": "invalid_generator_items"})
+                return
+
+            radiator_items, err = parse_items(
+                payload.get("radiator_items"), "radiator_type"
+            )
+            if err:
+                self._send_json(400, {"error": "invalid_radiator_items"})
+                return
+
+            control_items, err = parse_items(
+                payload.get("control_items"), "control_system"
+            )
+            if err:
+                self._send_json(400, {"error": "invalid_control_items"})
+                return
+
+            base_items, err = parse_items(payload.get("base_items"), "base_type")
+            if err:
+                self._send_json(400, {"error": "invalid_base_items"})
+                return
+
+            color_items, err = parse_items(payload.get("color_items"), "unit_color")
+            if err:
+                self._send_json(400, {"error": "invalid_color_items"})
+                return
+
+            items = []
+            for item in engine_items:
+                items.append(
+                    {
+                        "section": "engine",
+                        "name": item["name"],
+                        "extra": item["extra"],
+                        "price": item["price"],
+                    }
+                )
+            for item in generator_items:
+                items.append(
+                    {
+                        "section": "generator",
+                        "name": item["name"],
+                        "extra": item["extra"],
+                        "price": item["price"],
+                    }
+                )
+            for item in radiator_items:
+                items.append(
+                    {
+                        "section": "radiator",
+                        "name": item["name"],
+                        "extra": None,
+                        "price": item["price"],
+                    }
+                )
+            for item in control_items:
+                items.append(
+                    {
+                        "section": "control",
+                        "name": item["name"],
+                        "extra": None,
+                        "price": item["price"],
+                    }
+                )
+            for item in base_items:
+                items.append(
+                    {
+                        "section": "base",
+                        "name": item["name"],
+                        "extra": None,
+                        "price": item["price"],
+                    }
+                )
+            for item in color_items:
+                items.append(
+                    {
+                        "section": "color",
+                        "name": item["name"],
+                        "extra": None,
+                        "price": item["price"],
+                    }
+                )
+
+            first_engine = engine_items[0]
+            first_generator = generator_items[0]
+            first_radiator = radiator_items[0]
+            first_control = control_items[0]
+            first_base = base_items[0]
+            first_color = color_items[0]
+
+            data = {
+                "engine_category": first_engine["name"],
+                "engine_model": first_engine["extra"],
+                "radiator_type": first_radiator["name"],
+                "generator_category": first_generator["name"],
+                "generator_power": first_generator["extra"],
+                "control_system": first_control["name"],
+                "base_type": first_base["name"],
+                "unit_color": first_color["name"],
+                "price_engine_combo": first_engine["price"],
+                "price_generator_combo": first_generator["price"],
+                "price_radiator": first_radiator["price"],
+                "price_control": first_control["price"],
+                "price_base": first_base["price"],
+                "price_color": first_color["price"],
+                "items": items,
+            }
+            insert_quote(data)
+            self._send_json(201, {"ok": True})
             return
 
         required_fields = [
