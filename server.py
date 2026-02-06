@@ -16,9 +16,22 @@ def init_db():
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
             """
-            CREATE TABLE IF NOT EXISTS brands (
+            CREATE TABLE IF NOT EXISTS quotes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                brand TEXT NOT NULL,
+                engine_category TEXT NOT NULL,
+                engine_model TEXT NOT NULL,
+                radiator_type TEXT NOT NULL,
+                generator_category TEXT NOT NULL,
+                generator_power TEXT NOT NULL,
+                control_system TEXT NOT NULL,
+                base_type TEXT NOT NULL,
+                unit_color TEXT NOT NULL,
+                price_engine_combo REAL NOT NULL,
+                price_generator_combo REAL NOT NULL,
+                price_radiator REAL NOT NULL,
+                price_control REAL NOT NULL,
+                price_base REAL NOT NULL,
+                price_color REAL NOT NULL,
                 created_at TEXT NOT NULL
             )
             """
@@ -26,25 +39,106 @@ def init_db():
         conn.commit()
 
 
-def list_brands():
+def list_quotes():
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.execute(
-            "SELECT id, brand, created_at FROM brands ORDER BY id DESC"
+            """
+            SELECT id,
+                   engine_category,
+                   engine_model,
+                   radiator_type,
+                   generator_category,
+                   generator_power,
+                   control_system,
+                   base_type,
+                   unit_color,
+                   created_at
+            FROM quotes
+            ORDER BY id DESC
+            """
         )
         return [
-            {"id": row[0], "brand": row[1], "created_at": row[2]}
+            {
+                "id": row[0],
+                "engine_category": row[1],
+                "engine_model": row[2],
+                "radiator_type": row[3],
+                "generator_category": row[4],
+                "generator_power": row[5],
+                "control_system": row[6],
+                "base_type": row[7],
+                "unit_color": row[8],
+                "created_at": row[9],
+            }
             for row in cursor.fetchall()
         ]
 
 
-def insert_brand(brand):
+def insert_quote(payload):
     created_at = time.strftime("%Y-%m-%d %H:%M:%S")
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
-            "INSERT INTO brands (brand, created_at) VALUES (?, ?)",
-            (brand, created_at),
+            """
+            INSERT INTO quotes (
+                engine_category,
+                engine_model,
+                radiator_type,
+                generator_category,
+                generator_power,
+                control_system,
+                base_type,
+                unit_color,
+                price_engine_combo,
+                price_generator_combo,
+                price_radiator,
+                price_control,
+                price_base,
+                price_color,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                payload["engine_category"],
+                payload["engine_model"],
+                payload["radiator_type"],
+                payload["generator_category"],
+                payload["generator_power"],
+                payload["control_system"],
+                payload["base_type"],
+                payload["unit_color"],
+                payload["price_engine_combo"],
+                payload["price_generator_combo"],
+                payload["price_radiator"],
+                payload["price_control"],
+                payload["price_base"],
+                payload["price_color"],
+                created_at,
+            ),
         )
         conn.commit()
+
+
+def list_options():
+    with sqlite3.connect(DB_PATH) as conn:
+        def distinct(column):
+            return [
+                row[0]
+                for row in conn.execute(
+                    f"SELECT DISTINCT {column} FROM quotes WHERE {column} IS NOT NULL AND {column} != ''"
+                )
+            ]
+
+        return {
+            "engine_category": distinct("engine_category"),
+            "engine_model": distinct("engine_model"),
+            "radiator_type": distinct("radiator_type"),
+            "generator_category": distinct("generator_category"),
+            "generator_power": distinct("generator_power"),
+            "control_system": distinct("control_system"),
+            "base_type": distinct("base_type"),
+            "unit_color": distinct("unit_color"),
+        }
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -58,8 +152,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
-        if parsed.path == "/api/brands":
-            self._send_json(200, {"items": list_brands()})
+        if parsed.path == "/api/quotes":
+            self._send_json(200, {"items": list_quotes()})
+            return
+
+        if parsed.path == "/api/options":
+            self._send_json(200, list_options())
             return
 
         if parsed.path == "/":
@@ -72,7 +170,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urlparse(self.path)
-        if parsed.path != "/api/brands":
+        if parsed.path != "/api/quotes":
             self.send_error(404, "Not Found")
             return
 
@@ -84,13 +182,47 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self._send_json(400, {"error": "invalid_json"})
             return
 
-        brand = payload.get("brand")
-        if not isinstance(brand, str) or not brand.strip():
-            self._send_json(400, {"error": "invalid_brand"})
-            return
+        required_fields = [
+            "engine_category",
+            "engine_model",
+            "radiator_type",
+            "generator_category",
+            "generator_power",
+            "control_system",
+            "base_type",
+            "unit_color",
+        ]
+        price_fields = [
+            "price_engine_combo",
+            "price_generator_combo",
+            "price_radiator",
+            "price_control",
+            "price_base",
+            "price_color",
+        ]
 
-        insert_brand(brand.strip())
-        self._send_json(201, {"ok": True, "brand": brand})
+        data = {}
+        for field in required_fields:
+            value = payload.get(field)
+            if not isinstance(value, str) or not value.strip():
+                self._send_json(400, {"error": f"invalid_{field}"})
+                return
+            data[field] = value.strip()
+
+        for field in price_fields:
+            value = payload.get(field)
+            try:
+                price_value = float(value)
+            except (TypeError, ValueError):
+                self._send_json(400, {"error": f"invalid_{field}"})
+                return
+            if price_value < 0:
+                self._send_json(400, {"error": f"invalid_{field}"})
+                return
+            data[field] = price_value
+
+        insert_quote(data)
+        self._send_json(201, {"ok": True})
 
 
 def main():

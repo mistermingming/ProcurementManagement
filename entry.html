@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>发电机品牌录入</title>
+  <title>发电机报价录入</title>
   <style>
     :root {
       --bg: #f6f4ef;
@@ -47,7 +47,7 @@
       margin-bottom: 8px;
       color: var(--muted);
     }
-    input, button {
+    input, select, button {
       width: 100%;
       padding: 12px 14px;
       font-size: 15px;
@@ -84,51 +84,193 @@
 </head>
 <body>
   <div class="wrap">
-    <h1>发电机品牌录入</h1>
-    <p class="sub">选择品牌后点击录入，数据将保存到本地数据库。</p>
+    <h1>发电机报价录入</h1>
+    <p class="sub">选择下拉项并录入价格，数据将保存到本地数据库。</p>
 
     <div class="card">
-      <label for="brand">发电机品牌</label>
-      <input id="brand" type="text" placeholder="请输入品牌名称" />
+      <label for="engineCategory">发动机品类</label>
+      <select id="engineCategory"></select>
 
-      <button id="submit" type="button">录入</button>
+      <label for="engineModel" style="margin-top: 12px;">发动机型号</label>
+      <select id="engineModel"></select>
+
+      <label for="radiatorType" style="margin-top: 12px;">水箱类型</label>
+      <select id="radiatorType"></select>
+
+      <label for="generatorCategory" style="margin-top: 12px;">发电机品类</label>
+      <select id="generatorCategory"></select>
+
+      <label for="generatorPower" style="margin-top: 12px;">发电机功率</label>
+      <select id="generatorPower"></select>
+
+      <label for="controlSystem" style="margin-top: 12px;">控制系统</label>
+      <select id="controlSystem"></select>
+
+      <label for="baseType" style="margin-top: 12px;">底座类型</label>
+      <select id="baseType"></select>
+
+      <label for="unitColor" style="margin-top: 12px;">整机颜色</label>
+      <select id="unitColor"></select>
+
+      <label for="priceEngineCombo" style="margin-top: 16px;">发动机（品类+型号）价格</label>
+      <input id="priceEngineCombo" type="number" step="0.01" min="0" placeholder="请输入价格" />
+
+      <label for="priceGeneratorCombo" style="margin-top: 12px;">发电机（品类+功率）价格</label>
+      <input id="priceGeneratorCombo" type="number" step="0.01" min="0" placeholder="请输入价格" />
+
+      <label for="priceRadiator" style="margin-top: 12px;">水箱类型价格</label>
+      <input id="priceRadiator" type="number" step="0.01" min="0" placeholder="请输入价格" />
+
+      <label for="priceControl" style="margin-top: 12px;">控制系统价格</label>
+      <input id="priceControl" type="number" step="0.01" min="0" placeholder="请输入价格" />
+
+      <label for="priceBase" style="margin-top: 12px;">底座类型价格</label>
+      <input id="priceBase" type="number" step="0.01" min="0" placeholder="请输入价格" />
+
+      <label for="priceColor" style="margin-top: 12px;">整机颜色价格</label>
+      <input id="priceColor" type="number" step="0.01" min="0" placeholder="请输入价格" />
+
+      <button id="submit" type="button">录入报价</button>
 
       <div class="msg" id="msg">尚未录入</div>
-      <a class="link" href="/display.html">查看已录入品牌</a>
+      <a class="link" href="/display.html">查看已录入报价</a>
     </div>
   </div>
 
   <script>
-    const brand = document.getElementById("brand");
+    const engineCategory = document.getElementById("engineCategory");
+    const engineModel = document.getElementById("engineModel");
+    const radiatorType = document.getElementById("radiatorType");
+    const generatorCategory = document.getElementById("generatorCategory");
+    const generatorPower = document.getElementById("generatorPower");
+    const controlSystem = document.getElementById("controlSystem");
+    const baseType = document.getElementById("baseType");
+    const unitColor = document.getElementById("unitColor");
+    const priceEngineCombo = document.getElementById("priceEngineCombo");
+    const priceGeneratorCombo = document.getElementById("priceGeneratorCombo");
+    const priceRadiator = document.getElementById("priceRadiator");
+    const priceControl = document.getElementById("priceControl");
+    const priceBase = document.getElementById("priceBase");
+    const priceColor = document.getElementById("priceColor");
     const submit = document.getElementById("submit");
     const msg = document.getElementById("msg");
 
-    async function submitBrand() {
-      const value = brand.value.trim();
-      if (!value) {
-        msg.textContent = "请先输入品牌";
+    function setOptions(select, items) {
+      select.innerHTML = "";
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = items.length ? "请选择" : "暂无可选项";
+      select.appendChild(placeholder);
+      for (const item of items) {
+        const option = document.createElement("option");
+        option.value = item;
+        option.textContent = item;
+        select.appendChild(option);
+      }
+    }
+
+    async function loadOptions() {
+      try {
+        const res = await fetch("/api/options");
+        const data = await res.json();
+        setOptions(engineCategory, data.engine_category || []);
+        setOptions(engineModel, data.engine_model || []);
+        setOptions(radiatorType, data.radiator_type || []);
+        setOptions(generatorCategory, data.generator_category || []);
+        setOptions(generatorPower, data.generator_power || []);
+        setOptions(controlSystem, data.control_system || []);
+        setOptions(baseType, data.base_type || []);
+        setOptions(unitColor, data.unit_color || []);
+        const lists = [
+          data.engine_category || [],
+          data.engine_model || [],
+          data.radiator_type || [],
+          data.generator_category || [],
+          data.generator_power || [],
+          data.control_system || [],
+          data.base_type || [],
+          data.unit_color || []
+        ];
+        const missing = lists.some((list) => !list.length);
+        if (missing) {
+          msg.textContent = "部分选项为空，请先补充基础数据";
+          submit.disabled = true;
+        } else {
+          submit.disabled = false;
+        }
+      } catch (err) {
+        msg.textContent = "加载选项失败";
+      }
+    }
+
+    async function submitQuote() {
+      const payload = {
+        engine_category: engineCategory.value,
+        engine_model: engineModel.value,
+        radiator_type: radiatorType.value,
+        generator_category: generatorCategory.value,
+        generator_power: generatorPower.value,
+        control_system: controlSystem.value,
+        base_type: baseType.value,
+        unit_color: unitColor.value,
+        price_engine_combo: Number(priceEngineCombo.value),
+        price_generator_combo: Number(priceGeneratorCombo.value),
+        price_radiator: Number(priceRadiator.value),
+        price_control: Number(priceControl.value),
+        price_base: Number(priceBase.value),
+        price_color: Number(priceColor.value)
+      };
+
+      if (!payload.engine_category || !payload.engine_model) {
+        msg.textContent = "请先选择发动机品类和型号";
+        return;
+      }
+      if (!payload.generator_category || !payload.generator_power) {
+        msg.textContent = "请先选择发电机品类和功率";
+        return;
+      }
+      if (!payload.radiator_type || !payload.control_system || !payload.base_type || !payload.unit_color) {
+        msg.textContent = "请先选择全部配置项";
+        return;
+      }
+      if (
+        !priceEngineCombo.value ||
+        !priceGeneratorCombo.value ||
+        !priceRadiator.value ||
+        !priceControl.value ||
+        !priceBase.value ||
+        !priceColor.value
+      ) {
+        msg.textContent = "请先输入全部价格";
         return;
       }
 
       try {
-        const res = await fetch("/api/brands", {
+        const res = await fetch("/api/quotes", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ brand: value })
+          body: JSON.stringify(payload)
         });
         const data = await res.json();
         if (!res.ok) {
           msg.textContent = "录入失败：" + (data.error || "unknown");
           return;
         }
-        msg.textContent = "已录入：" + data.brand;
-        brand.value = "";
+        msg.textContent = "已录入报价";
+        priceEngineCombo.value = "";
+        priceGeneratorCombo.value = "";
+        priceRadiator.value = "";
+        priceControl.value = "";
+        priceBase.value = "";
+        priceColor.value = "";
+        loadOptions();
       } catch (err) {
         msg.textContent = "网络错误，未能录入";
       }
     }
 
-    submit.addEventListener("click", submitBrand);
+    submit.addEventListener("click", submitQuote);
+    loadOptions();
   </script>
 </body>
 </html>

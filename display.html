@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>发电机品牌展示</title>
+  <title>发电机报价展示</title>
   <style>
     :root {
       --bg: #f6f4ef;
@@ -62,17 +62,28 @@
       display: flex;
       align-items: center;
     }
-    ul {
-      margin: 12px 0 0;
-      padding: 0;
-      list-style: none;
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid #eee7dc;
+      border-radius: 10px;
+      background: #fff;
     }
-    li {
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 760px;
+      font-size: 14px;
+    }
+    th, td {
       padding: 10px 12px;
       border-bottom: 1px solid #eee7dc;
-      display: flex;
-      justify-content: space-between;
-      font-size: 14px;
+      text-align: left;
+      white-space: nowrap;
+    }
+    th {
+      background: #faf7f1;
+      color: var(--muted);
+      font-weight: 600;
     }
     .link {
       display: inline-block;
@@ -85,14 +96,30 @@
 </head>
 <body>
   <div class="wrap">
-    <h1>发电机品牌展示</h1>
-    <p class="sub">展示已录入的品牌记录。</p>
+    <h1>发电机报价展示</h1>
+    <p class="sub">展示已录入的报价配置。</p>
 
     <div class="card">
       <button id="refresh" type="button">刷新数据</button>
       <div class="latest" id="latest">暂无记录</div>
-      <ul id="list"></ul>
-      <a class="link" href="/entry.html">去录入品牌</a>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>发动机品类</th>
+              <th>发动机型号</th>
+              <th>水箱类型</th>
+              <th>发电机品类</th>
+              <th>发电机功率</th>
+              <th>控制系统</th>
+              <th>底座类型</th>
+              <th>整机颜色</th>
+            </tr>
+          </thead>
+          <tbody id="list"></tbody>
+        </table>
+      </div>
+      <a class="link" href="/entry.html">去录入报价</a>
     </div>
   </div>
 
@@ -107,17 +134,26 @@
         list.innerHTML = "";
         return;
       }
-      latest.textContent = "最新录入：" + items[0].brand;
+      latest.textContent = "最新录入时间：" + items[0].created_at;
       list.innerHTML = items
         .map((item) =>
-          "<li><span>" + item.brand + "</span><span>" + item.created_at + "</span></li>"
+          "<tr>" +
+            "<td>" + item.engine_category + "</td>" +
+            "<td>" + item.engine_model + "</td>" +
+            "<td>" + item.radiator_type + "</td>" +
+            "<td>" + item.generator_category + "</td>" +
+            "<td>" + item.generator_power + "</td>" +
+            "<td>" + item.control_system + "</td>" +
+            "<td>" + item.base_type + "</td>" +
+            "<td>" + item.unit_color + "</td>" +
+          "</tr>"
         )
         .join("");
     }
 
     async function loadData() {
       try {
-        const res = await fetch("/api/brands");
+        const res = await fetch("/api/quotes");
         const data = await res.json();
         render(data.items || []);
       } catch (err) {
