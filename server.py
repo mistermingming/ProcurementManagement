@@ -4,6 +4,8 @@ import json
 import os
 import sqlite3
 import sys
+import http.server
+import socketserver
 from urllib.parse import urlparse
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -134,6 +136,56 @@ def insert_rows(table, columns, rows):
     return len(rows)
 
 
+def replace_all_options(payload):
+    total_inserted = 0
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("DELETE FROM engine_options")
+        conn.execute("DELETE FROM generator_options")
+        conn.execute("DELETE FROM radiator_options")
+        conn.execute("DELETE FROM control_options")
+        conn.execute("DELETE FROM base_options")
+        conn.execute("DELETE FROM color_options")
+
+        if payload["engine"]:
+            conn.executemany(
+                "INSERT INTO engine_options (category, model, price) VALUES (?, ?, ?)",
+                [(i["category"], i["model"], i["price"]) for i in payload["engine"]],
+            )
+            total_inserted += len(payload["engine"])
+        if payload["generator"]:
+            conn.executemany(
+                "INSERT INTO generator_options (category, power, price) VALUES (?, ?, ?)",
+                [(i["category"], i["power"], i["price"]) for i in payload["generator"]],
+            )
+            total_inserted += len(payload["generator"])
+        if payload["radiator"]:
+            conn.executemany(
+                "INSERT INTO radiator_options (name, price) VALUES (?, ?)",
+                [(i["name"], i["price"]) for i in payload["radiator"]],
+            )
+            total_inserted += len(payload["radiator"])
+        if payload["control"]:
+            conn.executemany(
+                "INSERT INTO control_options (name, price) VALUES (?, ?)",
+                [(i["name"], i["price"]) for i in payload["control"]],
+            )
+            total_inserted += len(payload["control"])
+        if payload["base"]:
+            conn.executemany(
+                "INSERT INTO base_options (name, price) VALUES (?, ?)",
+                [(i["name"], i["price"]) for i in payload["base"]],
+            )
+            total_inserted += len(payload["base"])
+        if payload["color"]:
+            conn.executemany(
+                "INSERT INTO color_options (name, price) VALUES (?, ?)",
+                [(i["name"], i["price"]) for i in payload["color"]],
+            )
+            total_inserted += len(payload["color"])
+        conn.commit()
+    return total_inserted
+
+
 def list_all_options():
     return {
         "engine": list_simple(
@@ -147,6 +199,24 @@ def list_all_options():
         "base": list_simple("base_options", ["id", "name", "price"], "name"),
         "color": list_simple("color_options", ["id", "name", "price"], "name"),
     }
+
+
+def delete_option(section, item_id):
+    table_map = {
+        "engine": "engine_options",
+        "generator": "generator_options",
+        "radiator": "radiator_options",
+        "control": "control_options",
+        "base": "base_options",
+        "color": "color_options",
+    }
+    table = table_map.get(section)
+    if not table:
+        return False
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.execute(f"DELETE FROM {table} WHERE id = ?", (item_id,))
+        conn.commit()
+        return cursor.rowcount > 0
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -225,44 +295,48 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self._send_json(400, {"error": f"color_{err}"})
             return
 
-        total_inserted = 0
-        total_inserted += insert_rows(
-            "engine_options",
-            ["category", "model", "price"],
-            [(i["category"], i["model"], i["price"]) for i in engine_items],
+        total_inserted = replace_all_options(
+            {
+                "engine": engine_items,
+                "generator": generator_items,
+                "radiator": radiator_items,
+                "control": control_items,
+                "base": base_items,
+                "color": color_items,
+            }
         )
-        total_inserted += insert_rows(
-            "generator_options",
-            ["category", "power", "price"],
-            [(i["category"], i["power"], i["price"]) for i in generator_items],
-        )
-        total_inserted += insert_rows(
-            "radiator_options",
-            ["name", "price"],
-            [(i["name"], i["price"]) for i in radiator_items],
-        )
-        total_inserted += insert_rows(
-            "control_options",
-            ["name", "price"],
-            [(i["name"], i["price"]) for i in control_items],
-        )
-        total_inserted += insert_rows(
-            "base_options",
-            ["name", "price"],
-            [(i["name"], i["price"]) for i in base_items],
-        )
-        total_inserted += insert_rows(
-            "color_options",
-            ["name", "price"],
-            [(i["name"], i["price"]) for i in color_items],
-        )
-
-        if total_inserted == 0:
-            self._send_json(400, {"error": "no_items"})
-            return
 
         self._send_json(201, {"ok": True, "inserted": total_inserted})
 
+    def do_DELETE(self):
+        parsed = urlparse(self.path)
+        parts = parsed.path.strip("/").split("/")
+        if len(parts) != 3 or parts[0] != "api" or parts[1] != "options":
+            self.send_error(404, "Not Found")
+            return
+
+        section = parts[2]
+        query = parsed.query
+        item_id = None
+        if query.startswith("id="):
+            try:
+                item_id = int(query.split("=", 1)[1])
+            except ValueError:
+                item_id = None
+
+        if item_id is None or item_id <= 0:
+            self._send_json(400, {"error": "invalid_id"})
+            return
+
+        deleted = delete_option(section, item_id)
+        if not deleted:
+            self._send_json(404, {"error": "not_found"})
+            return
+        self._send_json(200, {"ok": True, "deleted": True})
+
+# 定义一个支持多线程的类
+class ThreadingTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    pass
 
 def main():
     port = 8000
@@ -274,8 +348,8 @@ def main():
 
     init_db()
 
-    with http.server.ThreadingHTTPServer(("0.0.0.0", port), Handler) as httpd:
-        print(f"Serving on http://0.0.0.0:{port}")
+    with ThreadingTCPServer(("0.0.0.0", port), Handler) as httpd:
+        print(f"多线程服务器已启动: http://服务器IP:{port}")
         httpd.serve_forever()
 
 

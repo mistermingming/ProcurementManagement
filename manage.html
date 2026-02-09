@@ -78,10 +78,10 @@
     }
     .row.engine,
     .row.generator {
-      grid-template-columns: 1.2fr 1.2fr 0.8fr;
+      grid-template-columns: 1.2fr 1.2fr 0.8fr 56px;
     }
     .row.pair {
-      grid-template-columns: 1.2fr 0.8fr;
+      grid-template-columns: 1.2fr 0.8fr 56px;
     }
     input, button {
       width: 100%;
@@ -90,6 +90,14 @@
       border-radius: 10px;
       border: 1px solid #d8d2c6;
       background: #fff;
+    }
+    input[type="number"] {
+      appearance: textfield;
+    }
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
     }
     button.primary {
       margin-top: 12px;
@@ -100,6 +108,17 @@
       font-size: 15px;
     }
     button.primary:hover { opacity: 0.92; }
+    .del-btn {
+      width: 100%;
+      padding: 0;
+      height: 40px;
+      border-radius: 10px;
+      border: 1px solid #e0c8c2;
+      background: #fff6f4;
+      color: #a33b2c;
+      font-weight: 600;
+      cursor: pointer;
+    }
     .msg {
       margin-top: 16px;
       padding: 12px 14px;
@@ -209,18 +228,35 @@
       return input;
     }
 
-    function buildRow(section) {
+    function buildRow(section, data = {}) {
       const row = document.createElement("div");
+      if (data.id) {
+        row.dataset.id = data.id;
+      }
       if (section === "engine") {
         row.className = "row engine";
-        row.appendChild(buildInput("category", "发动机品类"));
-        row.appendChild(buildInput("model", "发动机型号"));
-        row.appendChild(buildInput("price", "价格", "number"));
+        const category = buildInput("category", "发动机品类");
+        const model = buildInput("model", "发动机型号");
+        const price = buildInput("price", "价格", "number");
+        category.value = data.category || "";
+        model.value = data.model || "";
+        price.value = data.price ?? "";
+        row.appendChild(category);
+        row.appendChild(model);
+        row.appendChild(price);
+        row.appendChild(buildDeleteButton());
       } else if (section === "generator") {
         row.className = "row generator";
-        row.appendChild(buildInput("category", "发电机品类"));
-        row.appendChild(buildInput("power", "发电机功率"));
-        row.appendChild(buildInput("price", "价格", "number"));
+        const category = buildInput("category", "发电机品类");
+        const power = buildInput("power", "发电机功率");
+        const price = buildInput("price", "价格", "number");
+        category.value = data.category || "";
+        power.value = data.power || "";
+        price.value = data.price ?? "";
+        row.appendChild(category);
+        row.appendChild(power);
+        row.appendChild(price);
+        row.appendChild(buildDeleteButton());
       } else {
         row.className = "row pair";
         const labelMap = {
@@ -229,13 +265,26 @@
           base: "底座类型",
           color: "整机颜色"
         };
-        row.appendChild(buildInput("name", labelMap[section]));
-        row.appendChild(buildInput("price", "价格", "number"));
+        const name = buildInput("name", labelMap[section]);
+        const price = buildInput("price", "价格", "number");
+        name.value = data.name || "";
+        price.value = data.price ?? "";
+        row.appendChild(name);
+        row.appendChild(price);
+        row.appendChild(buildDeleteButton());
       }
       return row;
     }
 
-    function addRow(section) {
+    function buildDeleteButton() {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "del-btn";
+      button.textContent = "删";
+      return button;
+    }
+
+    function addRow(section, data) {
       const targetMap = {
         engine: engineRows,
         generator: generatorRows,
@@ -244,7 +293,48 @@
         base: baseRows,
         color: colorRows
       };
-      targetMap[section].appendChild(buildRow(section));
+      targetMap[section].appendChild(buildRow(section, data));
+    }
+
+    function clearRows() {
+      [engineRows, generatorRows, radiatorRows, controlRows, baseRows, colorRows]
+        .forEach((container) => { container.innerHTML = ""; });
+    }
+
+    function ensureAtLeastOneRow(section) {
+      const targetMap = {
+        engine: engineRows,
+        generator: generatorRows,
+        radiator: radiatorRows,
+        control: controlRows,
+        base: baseRows,
+        color: colorRows
+      };
+      if (!targetMap[section].children.length) {
+        addRow(section);
+      }
+    }
+
+    async function loadExisting() {
+      try {
+        const res = await fetch("/api/options");
+        const data = await res.json();
+        if (!res.ok) {
+          msg.textContent = "读取失败：" + (data.error || "unknown");
+          return;
+        }
+        clearRows();
+        (data.engine || []).forEach((item) => addRow("engine", item));
+        (data.generator || []).forEach((item) => addRow("generator", item));
+        (data.radiator || []).forEach((item) => addRow("radiator", item));
+        (data.control || []).forEach((item) => addRow("control", item));
+        (data.base || []).forEach((item) => addRow("base", item));
+        (data.color || []).forEach((item) => addRow("color", item));
+        ["engine", "generator", "radiator", "control", "base", "color"]
+          .forEach(ensureAtLeastOneRow);
+      } catch (err) {
+        msg.textContent = "网络错误，未能读取已有数据";
+      }
     }
 
     function collectRows(container, requiredFields) {
@@ -354,14 +444,7 @@
           return;
         }
         msg.textContent = "已保存，新增 " + data.inserted + " 条";
-        [engineRows, generatorRows, radiatorRows, controlRows, baseRows, colorRows]
-          .forEach((container) => { container.innerHTML = ""; });
-        addRow("engine");
-        addRow("generator");
-        addRow("radiator");
-        addRow("control");
-        addRow("base");
-        addRow("color");
+        await loadExisting();
       } catch (err) {
         msg.textContent = "网络错误，未能保存";
       }
@@ -372,12 +455,39 @@
       button.addEventListener("click", () => addRow(button.dataset.add));
     });
 
-    addRow("engine");
-    addRow("generator");
-    addRow("radiator");
-    addRow("control");
-    addRow("base");
-    addRow("color");
+    document.querySelectorAll(".rows").forEach((container) => {
+      container.addEventListener("click", async (event) => {
+        const target = event.target;
+        if (!target.classList.contains("del-btn")) {
+          return;
+        }
+        const row = target.closest(".row");
+        const section = target.closest(".section").dataset.section;
+        const rowId = row.dataset.id ? Number(row.dataset.id) : null;
+        if (!rowId) {
+          row.remove();
+          ensureAtLeastOneRow(section);
+          return;
+        }
+        try {
+          const res = await fetch(`/api/options/${section}?id=${rowId}`, {
+            method: "DELETE"
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            msg.textContent = "删除失败：" + (data.error || "unknown");
+            return;
+          }
+          row.remove();
+          ensureAtLeastOneRow(section);
+          msg.textContent = "已删除一条";
+        } catch (err) {
+          msg.textContent = "网络错误，未能删除";
+        }
+      });
+    });
+
+    loadExisting();
   </script>
 </body>
 </html>

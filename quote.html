@@ -61,10 +61,10 @@
       gap: 10px;
     }
     .row.triple {
-      grid-template-columns: 1.2fr 1.2fr 0.6fr;
+      grid-template-columns: 1.2fr 1.2fr;
     }
     .row.pair {
-      grid-template-columns: 1.2fr 0.6fr;
+      grid-template-columns: 1fr;
     }
     select, input {
       width: 100%;
@@ -73,10 +73,6 @@
       border-radius: 10px;
       border: 1px solid #d8d2c6;
       background: #fff;
-    }
-    input[readonly] {
-      background: #f7f6f2;
-      color: var(--muted);
     }
     .total {
       margin-top: 12px;
@@ -120,7 +116,6 @@
         <div class="row triple">
           <select id="engineCategory"></select>
           <select id="engineModel"></select>
-          <input id="enginePrice" type="text" readonly value="0" />
         </div>
       </div>
 
@@ -131,7 +126,6 @@
         <div class="row triple">
           <select id="generatorCategory"></select>
           <select id="generatorPower"></select>
-          <input id="generatorPrice" type="text" readonly value="0" />
         </div>
       </div>
 
@@ -141,7 +135,6 @@
         </div>
         <div class="row pair">
           <select id="radiatorSelect"></select>
-          <input id="radiatorPrice" type="text" readonly value="0" />
         </div>
       </div>
 
@@ -151,7 +144,6 @@
         </div>
         <div class="row pair">
           <select id="controlSelect"></select>
-          <input id="controlPrice" type="text" readonly value="0" />
         </div>
       </div>
 
@@ -161,7 +153,6 @@
         </div>
         <div class="row pair">
           <select id="baseSelect"></select>
-          <input id="basePrice" type="text" readonly value="0" />
         </div>
       </div>
 
@@ -171,7 +162,6 @@
         </div>
         <div class="row pair">
           <select id="colorSelect"></select>
-          <input id="colorPrice" type="text" readonly value="0" />
         </div>
       </div>
 
@@ -184,18 +174,12 @@
   <script>
     const engineCategory = document.getElementById("engineCategory");
     const engineModel = document.getElementById("engineModel");
-    const enginePrice = document.getElementById("enginePrice");
     const generatorCategory = document.getElementById("generatorCategory");
     const generatorPower = document.getElementById("generatorPower");
-    const generatorPrice = document.getElementById("generatorPrice");
     const radiatorSelect = document.getElementById("radiatorSelect");
-    const radiatorPrice = document.getElementById("radiatorPrice");
     const controlSelect = document.getElementById("controlSelect");
-    const controlPrice = document.getElementById("controlPrice");
     const baseSelect = document.getElementById("baseSelect");
-    const basePrice = document.getElementById("basePrice");
     const colorSelect = document.getElementById("colorSelect");
-    const colorPrice = document.getElementById("colorPrice");
     const total = document.getElementById("total");
     const msg = document.getElementById("msg");
 
@@ -205,6 +189,14 @@
     let controlMap = {};
     let baseMap = {};
     let colorMap = {};
+    const priceState = {
+      engine: 0,
+      generator: 0,
+      radiator: 0,
+      control: 0,
+      base: 0,
+      color: 0
+    };
 
     function setSelectOptions(select, items, placeholder) {
       select.innerHTML = "";
@@ -221,14 +213,7 @@
     }
 
     function updateTotal() {
-      const prices = [
-        Number(enginePrice.value || 0),
-        Number(generatorPrice.value || 0),
-        Number(radiatorPrice.value || 0),
-        Number(controlPrice.value || 0),
-        Number(basePrice.value || 0),
-        Number(colorPrice.value || 0)
-      ];
+      const prices = Object.values(priceState);
       const sum = prices.reduce((acc, v) => acc + v, 0);
       total.textContent = "总价：" + sum.toFixed(2);
       const allSelected =
@@ -247,28 +232,28 @@
       const categories = Object.keys(engineMap);
       setSelectOptions(engineCategory, categories, "选择发动机品类");
       setSelectOptions(engineModel, [], "选择发动机型号");
-      enginePrice.value = "0";
+      priceState.engine = 0;
     }
 
     function setupGenerator() {
       const categories = Object.keys(generatorMap);
       setSelectOptions(generatorCategory, categories, "选择发电机品类");
       setSelectOptions(generatorPower, [], "选择发电机功率");
-      generatorPrice.value = "0";
+      priceState.generator = 0;
     }
 
     engineCategory.addEventListener("change", () => {
       const list = engineMap[engineCategory.value] || [];
       const models = list.map((item) => item.model);
       setSelectOptions(engineModel, models, "选择发动机型号");
-      enginePrice.value = "0";
+      priceState.engine = 0;
       updateTotal();
     });
 
     engineModel.addEventListener("change", () => {
       const list = engineMap[engineCategory.value] || [];
       const found = list.find((item) => item.model === engineModel.value);
-      enginePrice.value = found ? String(found.price) : "0";
+      priceState.engine = found ? Number(found.price) : 0;
       updateTotal();
     });
 
@@ -276,29 +261,29 @@
       const list = generatorMap[generatorCategory.value] || [];
       const powers = list.map((item) => item.power);
       setSelectOptions(generatorPower, powers, "选择发电机功率");
-      generatorPrice.value = "0";
+      priceState.generator = 0;
       updateTotal();
     });
 
     generatorPower.addEventListener("change", () => {
       const list = generatorMap[generatorCategory.value] || [];
       const found = list.find((item) => item.power === generatorPower.value);
-      generatorPrice.value = found ? String(found.price) : "0";
+      priceState.generator = found ? Number(found.price) : 0;
       updateTotal();
     });
 
-    function bindSimple(select, priceInput, map) {
+    function bindSimple(select, key, map) {
       select.addEventListener("change", () => {
         const price = map[select.value] || 0;
-        priceInput.value = String(price);
+        priceState[key] = Number(price) || 0;
         updateTotal();
       });
     }
 
-    bindSimple(radiatorSelect, radiatorPrice, radiatorMap);
-    bindSimple(controlSelect, controlPrice, controlMap);
-    bindSimple(baseSelect, basePrice, baseMap);
-    bindSimple(colorSelect, colorPrice, colorMap);
+    bindSimple(radiatorSelect, "radiator", radiatorMap);
+    bindSimple(controlSelect, "control", controlMap);
+    bindSimple(baseSelect, "base", baseMap);
+    bindSimple(colorSelect, "color", colorMap);
 
     async function loadOptions() {
       try {
