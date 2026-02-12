@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>报价生成</title>
+  <title>新华中报价生成系统</title>
   <style>
     :root {
       --bg: #f6f4ef;
@@ -41,30 +41,73 @@
       padding: 20px;
       box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
     }
-    .section {
+    .list {
+      display: grid;
+      gap: 12px;
+      padding: 12px;
       border: 1px dashed #e2dbcf;
       border-radius: 12px;
-      padding: 12px;
       background: #fbf9f4;
-      margin-bottom: 14px;
     }
-    .section-header {
+    .item {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      margin-bottom: 10px;
+      gap: 10px;
+      flex-wrap: nowrap;
+    }
+    .item label {
       font-size: 14px;
       color: var(--muted);
+      white-space: nowrap;
+      width: 140px;
+      flex: 0 0 140px;
     }
-    .row {
+    .optional {
+      margin-top: 14px;
+      padding: 12px;
+      border: 1px dashed #e2dbcf;
+      border-radius: 12px;
+      background: #fbf9f4;
+    }
+    .optional-title {
+      font-size: 14px;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .option-list {
       display: grid;
-      gap: 10px;
+      gap: 8px;
     }
-    .row.triple {
-      grid-template-columns: 1.2fr 1.2fr;
+    .option-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
     }
-    .row.pair {
-      grid-template-columns: 1fr;
+    .option-input {
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      border: 2px solid #c9c2b6;
+      background: #fff;
+      display: inline-grid;
+      place-items: center;
+      cursor: pointer;
+    }
+    .option-input::after {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: transparent;
+      transition: background 0.15s ease;
+    }
+    .option-input:checked {
+      border-color: var(--accent);
+    }
+    .option-input:checked::after {
+      background: var(--accent);
     }
     select, input {
       width: 100%;
@@ -96,73 +139,60 @@
       font-size: 14px;
     }
     @media (max-width: 720px) {
-      .row.triple,
-      .row.pair {
-        grid-template-columns: 1fr;
+      .item select {
+        min-width: 0;
+      }
+      .item label {
+        width: 110px;
+        flex-basis: 110px;
       }
     }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>报价生成</h1>
+    <h1>新华中报价生成系统</h1>
     <p class="sub">客户选择每类配置后自动汇总总价。</p>
 
     <div class="card">
-      <div class="section">
-        <div class="section-header">
-          <span>发动机</span>
-        </div>
-        <div class="row triple">
+      <div class="list">
+        <div class="item">
+          <label for="engineCategory">发动机品类：</label>
           <select id="engineCategory"></select>
+        </div>
+        <div class="item">
+          <label for="engineModel">发动机型号：</label>
           <select id="engineModel"></select>
         </div>
-      </div>
-
-      <div class="section">
-        <div class="section-header">
-          <span>发电机</span>
-        </div>
-        <div class="row triple">
-          <select id="generatorCategory"></select>
-          <select id="generatorPower"></select>
-        </div>
-      </div>
-
-      <div class="section">
-        <div class="section-header">
-          <span>水箱</span>
-        </div>
-        <div class="row pair">
+        <div class="item">
+          <label for="radiatorSelect">水箱类型：</label>
           <select id="radiatorSelect"></select>
         </div>
-      </div>
-
-      <div class="section">
-        <div class="section-header">
-          <span>控制系统</span>
+        <div class="item">
+          <label for="generatorCategory">发电机品类：</label>
+          <select id="generatorCategory"></select>
         </div>
-        <div class="row pair">
+        <div class="item">
+          <label for="generatorPower">发电机功率：</label>
+          <select id="generatorPower"></select>
+        </div>
+        <div class="item">
+          <label for="controlSelect">控制系统：</label>
           <select id="controlSelect"></select>
         </div>
-      </div>
-
-      <div class="section">
-        <div class="section-header">
-          <span>底座</span>
-        </div>
-        <div class="row pair">
+        <div class="item">
+          <label for="baseSelect">底座类型：</label>
           <select id="baseSelect"></select>
         </div>
-      </div>
-
-      <div class="section">
-        <div class="section-header">
-          <span>整机颜色</span>
-        </div>
-        <div class="row pair">
+        <div class="item">
+          <label for="colorSelect">整机颜色：</label>
           <select id="colorSelect"></select>
         </div>
+      </div>
+
+      <div class="optional">
+        <div class="optional-title">以下为可选配置</div>
+        <div class="option-list" id="optionalList"></div>
       </div>
 
       <div class="total" id="total">总价：0</div>
@@ -180,6 +210,7 @@
     const controlSelect = document.getElementById("controlSelect");
     const baseSelect = document.getElementById("baseSelect");
     const colorSelect = document.getElementById("colorSelect");
+    const optionalList = document.getElementById("optionalList");
     const total = document.getElementById("total");
     const msg = document.getElementById("msg");
 
@@ -189,13 +220,15 @@
     let controlMap = {};
     let baseMap = {};
     let colorMap = {};
+    let optionalMap = [];
     const priceState = {
       engine: 0,
       generator: 0,
       radiator: 0,
       control: 0,
       base: 0,
-      color: 0
+      color: 0,
+      optional: 0
     };
 
     function setSelectOptions(select, items, placeholder) {
@@ -285,6 +318,40 @@
     bindSimple(baseSelect, "base", baseMap);
     bindSimple(colorSelect, "color", colorMap);
 
+    function renderOptional() {
+      optionalList.innerHTML = "";
+      if (!optionalMap.length) {
+        optionalList.textContent = "暂无可选配置";
+        priceState.optional = 0;
+        updateTotal();
+        return;
+      }
+      for (const item of optionalMap) {
+        const label = document.createElement("label");
+        label.className = "option-item";
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.className = "option-input";
+        input.dataset.price = item.price;
+        const text = document.createElement("span");
+        text.textContent = item.name;
+        input.addEventListener("change", () => {
+          const checked = optionalList.querySelectorAll(".option-input:checked");
+          let sum = 0;
+          checked.forEach((node) => {
+            sum += Number(node.dataset.price || 0);
+          });
+          priceState.optional = sum;
+          updateTotal();
+        });
+        label.appendChild(input);
+        label.appendChild(text);
+        optionalList.appendChild(label);
+      }
+      priceState.optional = 0;
+      updateTotal();
+    }
+
     async function loadOptions() {
       try {
         const res = await fetch("/api/options");
@@ -325,6 +392,10 @@
         for (const item of data.color || []) {
           colorMap[item.name] = item.price;
         }
+        optionalMap = (data.optional || []).map((item) => ({
+          name: item.name,
+          price: Number(item.price) || 0
+        }));
 
         setupEngine();
         setupGenerator();
@@ -332,6 +403,7 @@
         setSelectOptions(controlSelect, Object.keys(controlMap), "选择控制系统");
         setSelectOptions(baseSelect, Object.keys(baseMap), "选择底座类型");
         setSelectOptions(colorSelect, Object.keys(colorMap), "选择整机颜色");
+        renderOptional();
         updateTotal();
       } catch (err) {
         msg.textContent = "加载配置失败";

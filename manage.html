@@ -199,6 +199,14 @@
         <div class="rows" id="colorRows"></div>
       </div>
 
+      <div class="section" data-section="optional">
+        <div class="section-header">
+          <span>可选配置</span>
+          <button type="button" class="add-btn" data-add="optional">+</button>
+        </div>
+        <div class="rows" id="optionalRows"></div>
+      </div>
+
       <button class="primary" id="submit" type="button">保存全部</button>
 
       <div class="msg" id="msg">尚未录入</div>
@@ -213,6 +221,7 @@
     const controlRows = document.getElementById("controlRows");
     const baseRows = document.getElementById("baseRows");
     const colorRows = document.getElementById("colorRows");
+    const optionalRows = document.getElementById("optionalRows");
     const submit = document.getElementById("submit");
     const msg = document.getElementById("msg");
 
@@ -263,7 +272,8 @@
           radiator: "水箱类型",
           control: "控制系统",
           base: "底座类型",
-          color: "整机颜色"
+          color: "整机颜色",
+          optional: "可选配置"
         };
         const name = buildInput("name", labelMap[section]);
         const price = buildInput("price", "价格", "number");
@@ -291,13 +301,14 @@
         radiator: radiatorRows,
         control: controlRows,
         base: baseRows,
-        color: colorRows
+        color: colorRows,
+        optional: optionalRows
       };
       targetMap[section].appendChild(buildRow(section, data));
     }
 
     function clearRows() {
-      [engineRows, generatorRows, radiatorRows, controlRows, baseRows, colorRows]
+      [engineRows, generatorRows, radiatorRows, controlRows, baseRows, colorRows, optionalRows]
         .forEach((container) => { container.innerHTML = ""; });
     }
 
@@ -308,7 +319,8 @@
         radiator: radiatorRows,
         control: controlRows,
         base: baseRows,
-        color: colorRows
+        color: colorRows,
+        optional: optionalRows
       };
       if (!targetMap[section].children.length) {
         addRow(section);
@@ -330,7 +342,8 @@
         (data.control || []).forEach((item) => addRow("control", item));
         (data.base || []).forEach((item) => addRow("base", item));
         (data.color || []).forEach((item) => addRow("color", item));
-        ["engine", "generator", "radiator", "control", "base", "color"]
+        (data.optional || []).forEach((item) => addRow("optional", item));
+        ["engine", "generator", "radiator", "control", "base", "color", "optional"]
           .forEach(ensureAtLeastOneRow);
       } catch (err) {
         msg.textContent = "网络错误，未能读取已有数据";
@@ -410,6 +423,11 @@
         msg.textContent = "整机颜色：" + color.error;
         return;
       }
+      const optional = collectRows(optionalRows, ["name"]);
+      if (!optional.ok) {
+        msg.textContent = "可选配置：" + optional.error;
+        return;
+      }
 
       const payload = {
         engine: engine.items,
@@ -417,7 +435,8 @@
         radiator: radiator.items,
         control: control.items,
         base: base.items,
-        color: color.items
+        color: color.items,
+        optional: optional.items
       };
 
       const totalCount =
@@ -426,7 +445,8 @@
         radiator.items.length +
         control.items.length +
         base.items.length +
-        color.items.length;
+        color.items.length +
+        optional.items.length;
       if (!totalCount) {
         msg.textContent = "请至少录入一项";
         return;

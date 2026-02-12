@@ -70,6 +70,15 @@ def init_db():
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS optional_options (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                price REAL NOT NULL
+            )
+            """
+        )
         conn.commit()
 
 
@@ -145,6 +154,7 @@ def replace_all_options(payload):
         conn.execute("DELETE FROM control_options")
         conn.execute("DELETE FROM base_options")
         conn.execute("DELETE FROM color_options")
+        conn.execute("DELETE FROM optional_options")
 
         if payload["engine"]:
             conn.executemany(
@@ -182,6 +192,12 @@ def replace_all_options(payload):
                 [(i["name"], i["price"]) for i in payload["color"]],
             )
             total_inserted += len(payload["color"])
+        if payload["optional"]:
+            conn.executemany(
+                "INSERT INTO optional_options (name, price) VALUES (?, ?)",
+                [(i["name"], i["price"]) for i in payload["optional"]],
+            )
+            total_inserted += len(payload["optional"])
         conn.commit()
     return total_inserted
 
@@ -198,6 +214,7 @@ def list_all_options():
         "control": list_simple("control_options", ["id", "name", "price"], "name"),
         "base": list_simple("base_options", ["id", "name", "price"], "name"),
         "color": list_simple("color_options", ["id", "name", "price"], "name"),
+        "optional": list_simple("optional_options", ["id", "name", "price"], "name"),
     }
 
 
@@ -209,6 +226,7 @@ def delete_option(section, item_id):
         "control": "control_options",
         "base": "base_options",
         "color": "color_options",
+        "optional": "optional_options",
     }
     table = table_map.get(section)
     if not table:
@@ -294,6 +312,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if err:
             self._send_json(400, {"error": f"color_{err}"})
             return
+        optional_items, err = parse_items(payload.get("optional"), ["name"])
+        if err:
+            self._send_json(400, {"error": f"optional_{err}"})
+            return
 
         total_inserted = replace_all_options(
             {
@@ -303,6 +325,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 "control": control_items,
                 "base": base_items,
                 "color": color_items,
+                "optional": optional_items,
             }
         )
 
