@@ -4,98 +4,228 @@ import json
 import os
 import sqlite3
 import sys
-import http.server
 import socketserver
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "data.db")
 
 
+TABLE_CONFIG = {
+    "frequency": {
+        "columns": ["id", "value"],
+        "write_columns": ["value"],
+        "order_by": "value",
+        "readonly": True,
+    },
+    "phase": {
+        "columns": ["id", "value"],
+        "write_columns": ["value"],
+        "order_by": "value",
+    },
+    "voltage": {
+        "columns": ["id", "frequency", "voltage"],
+        "write_columns": ["frequency", "voltage"],
+        "order_by": "frequency, voltage",
+    },
+    "engine": {
+        "columns": ["id", "frequency", "brand", "model", "price"],
+        "write_columns": ["frequency", "brand", "model", "price"],
+        "order_by": "frequency, brand, model",
+    },
+    "generator": {
+        "columns": ["id", "frequency", "brand", "model", "price"],
+        "write_columns": ["frequency", "brand", "model", "price"],
+        "order_by": "frequency, brand, model",
+    },
+    "generator_tank": {
+        "columns": ["generator_id", "tank_value", "price"],
+        "write_columns": ["generator_id", "tank_value", "price"],
+        "order_by": "generator_id, tank_value",
+    },
+    "control_system": {
+        "columns": ["id", "name", "price"],
+        "write_columns": ["name", "price"],
+        "order_by": "name",
+    },
+    "switch": {
+        "columns": ["id", "name", "price"],
+        "write_columns": ["name", "price"],
+        "order_by": "name",
+    },
+    "base": {
+        "columns": ["id", "name", "price"],
+        "write_columns": ["name", "price"],
+        "order_by": "name",
+    },
+    "battery": {
+        "columns": ["id", "name", "price"],
+        "write_columns": ["name", "price"],
+        "order_by": "name",
+    },
+    "silencer": {
+        "columns": ["id", "name", "price"],
+        "write_columns": ["name", "price"],
+        "order_by": "name",
+    },
+    "elbow": {
+        "columns": ["id", "name", "price"],
+        "write_columns": ["name", "price"],
+        "order_by": "name",
+    },
+}
+
+
+def get_conn():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys=ON")
+    return conn
+
+
 def init_db():
-    with sqlite3.connect(DB_PATH) as conn:
+    with get_conn() as conn:
         conn.execute(
             """
-            CREATE TABLE IF NOT EXISTS engine_options (
+            CREATE TABLE IF NOT EXISTS frequency (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                category TEXT NOT NULL,
+                value TEXT NOT NULL UNIQUE
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS phase (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                value TEXT NOT NULL UNIQUE
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS voltage (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                frequency TEXT NOT NULL,
+                voltage TEXT NOT NULL,
+                FOREIGN KEY (frequency) REFERENCES frequency(value)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS engine (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                frequency TEXT NOT NULL,
+                brand TEXT NOT NULL,
                 model TEXT NOT NULL,
+                price REAL NOT NULL,
+                FOREIGN KEY (frequency) REFERENCES frequency(value)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS generator (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                frequency TEXT NOT NULL,
+                brand TEXT NOT NULL,
+                model TEXT NOT NULL,
+                price REAL NOT NULL,
+                FOREIGN KEY (frequency) REFERENCES frequency(value)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS generator_tank (
+                generator_id INTEGER NOT NULL,
+                tank_value TEXT NOT NULL,
+                price REAL NOT NULL DEFAULT 0,
+                PRIMARY KEY (generator_id, tank_value),
+                FOREIGN KEY (generator_id) REFERENCES generator(id) ON DELETE CASCADE
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS control_system (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
                 price REAL NOT NULL
             )
             """
         )
         conn.execute(
             """
-            CREATE TABLE IF NOT EXISTS generator_options (
+            CREATE TABLE IF NOT EXISTS switch (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                category TEXT NOT NULL,
-                power TEXT NOT NULL,
+                name TEXT NOT NULL UNIQUE,
                 price REAL NOT NULL
             )
             """
         )
         conn.execute(
             """
-            CREATE TABLE IF NOT EXISTS radiator_options (
+            CREATE TABLE IF NOT EXISTS base (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
+                name TEXT NOT NULL UNIQUE,
                 price REAL NOT NULL
             )
             """
         )
         conn.execute(
             """
-            CREATE TABLE IF NOT EXISTS control_options (
+            CREATE TABLE IF NOT EXISTS battery (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
+                name TEXT NOT NULL UNIQUE,
                 price REAL NOT NULL
             )
             """
         )
         conn.execute(
             """
-            CREATE TABLE IF NOT EXISTS base_options (
+            CREATE TABLE IF NOT EXISTS silencer (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
+                name TEXT NOT NULL UNIQUE,
                 price REAL NOT NULL
             )
             """
         )
         conn.execute(
             """
-            CREATE TABLE IF NOT EXISTS color_options (
+            CREATE TABLE IF NOT EXISTS elbow (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
+                name TEXT NOT NULL UNIQUE,
                 price REAL NOT NULL
             )
             """
         )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS optional_options (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                price REAL NOT NULL
-            )
-            """
+        conn.executemany(
+            "INSERT OR IGNORE INTO frequency (value) VALUES (?)",
+            [("50hz",), ("60hz",)],
         )
         conn.commit()
 
 
-def list_simple(table, columns, order_by):
-    with sqlite3.connect(DB_PATH) as conn:
-        col_sql = ", ".join(columns)
+def list_table_rows(table):
+    config = TABLE_CONFIG.get(table)
+    if not config:
+        return None
+    columns = config["columns"]
+    order_by = config["order_by"]
+    col_sql = ", ".join(columns)
+    with get_conn() as conn:
         cursor = conn.execute(
             f"SELECT {col_sql} FROM {table} ORDER BY {order_by}"
         )
         rows = cursor.fetchall()
-        items = []
-        for row in rows:
-            item = {}
-            for idx, col in enumerate(columns):
-                item[col] = row[idx]
-            items.append(item)
-        return items
+    items = []
+    for row in rows:
+        item = {}
+        for col in columns:
+            item[col] = row[col]
+        items.append(item)
+    return items
 
 
 def parse_price(value):
@@ -108,133 +238,90 @@ def parse_price(value):
     return price_value
 
 
-def parse_items(items, required_fields):
-    if items is None:
-        return [], None
-    if not isinstance(items, list):
-        return None, "invalid_items"
-    parsed = []
-    for item in items:
-        if not isinstance(item, dict):
-            return None, "invalid_items"
-        parsed_item = {}
-        for field in required_fields:
-            value = item.get(field)
-            if not isinstance(value, str) or not value.strip():
-                return None, f"invalid_{field}"
-            parsed_item[field] = value.strip()
-        price_value = parse_price(item.get("price"))
-        if price_value is None:
-            return None, "invalid_price"
-        parsed_item["price"] = price_value
-        parsed.append(parsed_item)
+def validate_frequency(conn, value):
+    if not isinstance(value, str) or not value.strip():
+        return False
+    cursor = conn.execute(
+        "SELECT 1 FROM frequency WHERE value = ? LIMIT 1", (value.strip(),)
+    )
+    return cursor.fetchone() is not None
+
+
+def validate_generator_id(conn, value):
+    try:
+        generator_id = int(value)
+    except (TypeError, ValueError):
+        return None
+    if generator_id <= 0:
+        return None
+    cursor = conn.execute(
+        "SELECT 1 FROM generator WHERE id = ? LIMIT 1", (generator_id,)
+    )
+    if cursor.fetchone() is None:
+        return None
+    return generator_id
+
+
+def parse_row(conn, table, row):
+    if not isinstance(row, dict):
+        return None, "invalid_row"
+    config = TABLE_CONFIG[table]
+    parsed = {}
+    for column in config["write_columns"]:
+        value = row.get(column)
+        if column == "price":
+            price_value = parse_price(value)
+            if price_value is None:
+                return None, "invalid_price"
+            parsed[column] = price_value
+            continue
+        if column == "frequency":
+            if not validate_frequency(conn, value):
+                return None, "invalid_frequency"
+            parsed[column] = value.strip()
+            continue
+        if column == "generator_id":
+            generator_id = validate_generator_id(conn, value)
+            if generator_id is None:
+                return None, "invalid_generator_id"
+            parsed[column] = generator_id
+            continue
+        if not isinstance(value, str) or not value.strip():
+            return None, f"invalid_{column}"
+        parsed[column] = value.strip()
     return parsed, None
 
 
-def insert_rows(table, columns, rows):
-    if not rows:
-        return 0
-    placeholders = ", ".join(["?"] * len(columns))
-    col_sql = ", ".join(columns)
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.executemany(
-            f"INSERT INTO {table} ({col_sql}) VALUES ({placeholders})",
-            rows,
-        )
-        conn.commit()
-    return len(rows)
+def replace_table_rows(table, rows):
+    config = TABLE_CONFIG[table]
+    if config.get("readonly"):
+        return None, "readonly"
+    if rows is None:
+        return None, "invalid_rows"
+    if not isinstance(rows, list):
+        return None, "invalid_rows"
+    with get_conn() as conn:
+        parsed_rows = []
+        for row in rows:
+            parsed, err = parse_row(conn, table, row)
+            if err:
+                return None, err
+            parsed_rows.append(parsed)
 
-
-def replace_all_options(payload):
-    total_inserted = 0
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.execute("DELETE FROM engine_options")
-        conn.execute("DELETE FROM generator_options")
-        conn.execute("DELETE FROM radiator_options")
-        conn.execute("DELETE FROM control_options")
-        conn.execute("DELETE FROM base_options")
-        conn.execute("DELETE FROM color_options")
-        conn.execute("DELETE FROM optional_options")
-
-        if payload["engine"]:
-            conn.executemany(
-                "INSERT INTO engine_options (category, model, price) VALUES (?, ?, ?)",
-                [(i["category"], i["model"], i["price"]) for i in payload["engine"]],
-            )
-            total_inserted += len(payload["engine"])
-        if payload["generator"]:
-            conn.executemany(
-                "INSERT INTO generator_options (category, power, price) VALUES (?, ?, ?)",
-                [(i["category"], i["power"], i["price"]) for i in payload["generator"]],
-            )
-            total_inserted += len(payload["generator"])
-        if payload["radiator"]:
-            conn.executemany(
-                "INSERT INTO radiator_options (name, price) VALUES (?, ?)",
-                [(i["name"], i["price"]) for i in payload["radiator"]],
-            )
-            total_inserted += len(payload["radiator"])
-        if payload["control"]:
-            conn.executemany(
-                "INSERT INTO control_options (name, price) VALUES (?, ?)",
-                [(i["name"], i["price"]) for i in payload["control"]],
-            )
-            total_inserted += len(payload["control"])
-        if payload["base"]:
-            conn.executemany(
-                "INSERT INTO base_options (name, price) VALUES (?, ?)",
-                [(i["name"], i["price"]) for i in payload["base"]],
-            )
-            total_inserted += len(payload["base"])
-        if payload["color"]:
-            conn.executemany(
-                "INSERT INTO color_options (name, price) VALUES (?, ?)",
-                [(i["name"], i["price"]) for i in payload["color"]],
-            )
-            total_inserted += len(payload["color"])
-        if payload["optional"]:
-            conn.executemany(
-                "INSERT INTO optional_options (name, price) VALUES (?, ?)",
-                [(i["name"], i["price"]) for i in payload["optional"]],
-            )
-            total_inserted += len(payload["optional"])
-        conn.commit()
-    return total_inserted
-
-
-def list_all_options():
-    return {
-        "engine": list_simple(
-            "engine_options", ["id", "category", "model", "price"], "category, model"
-        ),
-        "generator": list_simple(
-            "generator_options", ["id", "category", "power", "price"], "category, power"
-        ),
-        "radiator": list_simple("radiator_options", ["id", "name", "price"], "name"),
-        "control": list_simple("control_options", ["id", "name", "price"], "name"),
-        "base": list_simple("base_options", ["id", "name", "price"], "name"),
-        "color": list_simple("color_options", ["id", "name", "price"], "name"),
-        "optional": list_simple("optional_options", ["id", "name", "price"], "name"),
-    }
-
-
-def delete_option(section, item_id):
-    table_map = {
-        "engine": "engine_options",
-        "generator": "generator_options",
-        "radiator": "radiator_options",
-        "control": "control_options",
-        "base": "base_options",
-        "color": "color_options",
-        "optional": "optional_options",
-    }
-    table = table_map.get(section)
-    if not table:
-        return False
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.execute(f"DELETE FROM {table} WHERE id = ?", (item_id,))
-        conn.commit()
-        return cursor.rowcount > 0
+        try:
+            conn.execute(f"DELETE FROM {table}")
+            if parsed_rows:
+                columns = config["write_columns"]
+                col_sql = ", ".join(columns)
+                placeholders = ", ".join(["?"] * len(columns))
+                conn.executemany(
+                    f"INSERT INTO {table} ({col_sql}) VALUES ({placeholders})",
+                    [tuple(row[col] for col in columns) for row in parsed_rows],
+                )
+            conn.commit()
+        except sqlite3.IntegrityError:
+            return None, "integrity_error"
+    return len(parsed_rows), None
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -256,13 +343,44 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
-        if parsed.path == "/api/options":
-            self._send_json(200, list_all_options())
+        if parsed.path == "/api/meta":
+            with get_conn() as conn:
+                freq_rows = conn.execute(
+                    "SELECT value FROM frequency ORDER BY value"
+                ).fetchall()
+                generator_rows = conn.execute(
+                    "SELECT id, frequency, brand, model FROM generator ORDER BY id"
+                ).fetchall()
+            self._send_json(
+                200,
+                {
+                    "frequency": [row["value"] for row in freq_rows],
+                    "generators": [
+                        {
+                            "id": row["id"],
+                            "frequency": row["frequency"],
+                            "brand": row["brand"],
+                            "model": row["model"],
+                        }
+                        for row in generator_rows
+                    ],
+                },
+            )
+            return
+
+        if parsed.path == "/api/table":
+            params = parse_qs(parsed.query)
+            table = params.get("name", [None])[0]
+            if table not in TABLE_CONFIG:
+                self._send_json(404, {"error": "table_not_found"})
+                return
+            rows = list_table_rows(table)
+            self._send_json(200, {"rows": rows})
             return
 
         if parsed.path == "/":
             self.send_response(302)
-            self.send_header("Location", "/quote.html")
+            self.send_header("Location", "/admin.html")
             self.end_headers()
             return
 
@@ -270,8 +388,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urlparse(self.path)
-        if parsed.path != "/api/options":
+        if parsed.path != "/api/table":
             self.send_error(404, "Not Found")
+            return
+
+        params = parse_qs(parsed.query)
+        table = params.get("name", [None])[0]
+        if table not in TABLE_CONFIG:
+            self._send_json(404, {"error": "table_not_found"})
             return
 
         payload, err = self._read_json()
@@ -279,83 +403,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self._send_json(400, {"error": err})
             return
 
-        engine_items, err = parse_items(
-            payload.get("engine"), ["category", "model"]
-        )
+        rows = payload.get("rows")
+        inserted, err = replace_table_rows(table, rows)
         if err:
-            self._send_json(400, {"error": f"engine_{err}"})
+            self._send_json(400, {"error": err})
             return
-
-        generator_items, err = parse_items(
-            payload.get("generator"), ["category", "power"]
-        )
-        if err:
-            self._send_json(400, {"error": f"generator_{err}"})
-            return
-
-        radiator_items, err = parse_items(payload.get("radiator"), ["name"])
-        if err:
-            self._send_json(400, {"error": f"radiator_{err}"})
-            return
-
-        control_items, err = parse_items(payload.get("control"), ["name"])
-        if err:
-            self._send_json(400, {"error": f"control_{err}"})
-            return
-
-        base_items, err = parse_items(payload.get("base"), ["name"])
-        if err:
-            self._send_json(400, {"error": f"base_{err}"})
-            return
-
-        color_items, err = parse_items(payload.get("color"), ["name"])
-        if err:
-            self._send_json(400, {"error": f"color_{err}"})
-            return
-        optional_items, err = parse_items(payload.get("optional"), ["name"])
-        if err:
-            self._send_json(400, {"error": f"optional_{err}"})
-            return
-
-        total_inserted = replace_all_options(
-            {
-                "engine": engine_items,
-                "generator": generator_items,
-                "radiator": radiator_items,
-                "control": control_items,
-                "base": base_items,
-                "color": color_items,
-                "optional": optional_items,
-            }
-        )
-
-        self._send_json(201, {"ok": True, "inserted": total_inserted})
-
-    def do_DELETE(self):
-        parsed = urlparse(self.path)
-        parts = parsed.path.strip("/").split("/")
-        if len(parts) != 3 or parts[0] != "api" or parts[1] != "options":
-            self.send_error(404, "Not Found")
-            return
-
-        section = parts[2]
-        query = parsed.query
-        item_id = None
-        if query.startswith("id="):
-            try:
-                item_id = int(query.split("=", 1)[1])
-            except ValueError:
-                item_id = None
-
-        if item_id is None or item_id <= 0:
-            self._send_json(400, {"error": "invalid_id"})
-            return
-
-        deleted = delete_option(section, item_id)
-        if not deleted:
-            self._send_json(404, {"error": "not_found"})
-            return
-        self._send_json(200, {"ok": True, "deleted": True})
+        self._send_json(200, {"ok": True, "inserted": inserted})
 
 # 定义一个支持多线程的类
 class ThreadingTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
