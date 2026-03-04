@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>报价配置</title>
+  <style>
+    :root {
+      --bg: #f4efe5;
+      --fg: #1f1c16;
+      --muted: #6f675d;
+      --card: #fffdf9;
+      --line: #e3dbcf;
+      --accent: #115e59;
+      --shadow: 0 20px 40px rgba(41, 28, 13, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--fg);
+      font-family: "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "STSong", serif;
+      background: radial-gradient(circle at 10% 10%, #fff8ec 0%, #f3ede3 45%, #ece4d8 100%);
+    }
+    header {
+      padding: 36px 6vw 10px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 30px;
+      font-weight: 600;
+      letter-spacing: 1px;
+    }
+    .sub {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    main {
+      padding: 12px 6vw 44px;
+      display: grid;
+      gap: 14px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .field-label {
+      font-size: 14px;
+      color: var(--fg);
+      display: block;
+    }
+    select {
+      width: 100%;
+      border: 1px solid #ddd2c1;
+      border-radius: 8px;
+      background: #fff;
+      padding: 8px 10px;
+      font-size: 14px;
+      font-family: inherit;
+      color: var(--fg);
+    }
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 16px;
+      font-weight: 600;
+      padding-top: 8px;
+    }
+    .total {
+      color: var(--accent);
+      font-size: 24px;
+      letter-spacing: 0.5px;
+    }
+    .status {
+      margin-top: 4px;
+      color: #8f3a2c;
+      font-size: 13px;
+    }
+    @media (max-width: 900px) {
+      header {
+        padding: 24px 20px 8px;
+      }
+      main {
+        padding: 12px 20px 30px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>报价选择</h1>
+    <div class="sub">按顺序选择配置项，仅展示名称，底部自动累计有价格的项目总价。</div>
+  </header>
+
+  <main>
+    <section class="card" id="quote-form"></section>
+  </main>
+
+  <script>
+    const formEl = document.getElementById("quote-form");
+
+    const fields = [
+      { key: "frequency", label: "频率" },
+      { key: "voltage", label: "电压" },
+      { key: "phase", label: "相数" },
+      { key: "engine_brand", label: "发动机品牌" },
+      { key: "engine_model", label: "发动机型号" },
+      { key: "generator_brand", label: "发电机品牌" },
+      { key: "generator_model", label: "发电机型号" },
+      { key: "generator_tank", label: "水箱" },
+      { key: "control_system", label: "控制系统" },
+      { key: "switch", label: "开关" },
+      { key: "base", label: "底座" },
+      { key: "battery", label: "电池" },
+      { key: "silencer", label: "消音器" },
+      { key: "elbow", label: "弯头" },
+    ];
+
+    const selectMap = {};
+    let dataset = {
+      frequency: [],
+      voltage: [],
+      phase: [],
+      engine: [],
+      generator: [],
+      generator_tank: [],
+      control_system: [],
+      switch: [],
+      base: [],
+      battery: [],
+      silencer: [],
+      elbow: [],
+    };
+
+    const state = {
+      frequency: "",
+      voltage: "",
+      phase: "",
+      engine_brand: "",
+      engine_model: "",
+      generator_brand: "",
+      generator_model: "",
+      generator_tank: "",
+      control_system: "",
+      switch: "",
+      base: "",
+      battery: "",
+      silencer: "",
+      elbow: "",
+    };
+
+    function formatMoney(value) {
+      return Number(value).toFixed(2);
+    }
+
+    function buildOptions(select, options, value) {
+      select.innerHTML = "";
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = "请选择";
+      placeholder.selected = !value;
+      select.appendChild(placeholder);
+
+      options.forEach((item) => {
+        const option = document.createElement("option");
+        option.value = item.value;
+        option.textContent = item.label;
+        if (value && value === item.value) {
+          option.selected = true;
+        }
+        select.appendChild(option);
+      });
+    }
+
+    function uniqueBy(list, keyFn) {
+      const map = new Map();
+      list.forEach((item) => {
+        const key = keyFn(item);
+        if (!map.has(key)) map.set(key, item);
+      });
+      return Array.from(map.values());
+    }
+
+    function getEngineBrands() {
+      return uniqueBy(
+        dataset.engine.filter((row) => row.frequency === state.frequency),
+        (row) => row.brand
+      ).map((row) => ({ value: row.brand, label: row.brand }));
+    }
+
+    function getEngineModels() {
+      return dataset.engine
+        .filter((row) => row.frequency === state.frequency && row.brand === state.engine_brand)
+        .map((row) => ({
+          value: String(row.id),
+          label: row.model,
+          price: Number(row.price) || 0,
+        }));
+    }
+
+    function getGeneratorBrands() {
+      return uniqueBy(
+        dataset.generator.filter((row) => row.frequency === state.frequency),
+        (row) => row.brand
+      ).map((row) => ({ value: row.brand, label: row.brand }));
+    }
+
+    function getGeneratorModels() {
+      return dataset.generator
+        .filter((row) => row.frequency === state.frequency && row.brand === state.generator_brand)
+        .map((row) => ({
+          value: String(row.id),
+          label: row.model,
+          price: Number(row.price) || 0,
+        }));
+    }
+
+    function getTankOptions() {
+      if (!state.generator_model) return [];
+      return dataset.generator_tank
+        .filter((row) => String(row.generator_id) === state.generator_model)
+        .map((row) => ({
+          value: `${row.generator_id}:${row.tank_value}`,
+          label: row.tank_value,
+          price: Number(row.price) || 0,
+        }));
+    }
+
+    function getSimpleOptions(tableKey) {
+      return dataset[tableKey].map((row) => ({
+        value: String(row.id),
+        label: row.name,
+        price: Number(row.price) || 0,
+      }));
+    }
+
+    function getVoltageOptions() {
+      return dataset.voltage
+        .filter((row) => row.frequency === state.frequency)
+        .map((row) => ({ value: String(row.id), label: row.voltage }));
+    }
+
+    function getPhaseOptions() {
+      return dataset.phase.map((row) => ({ value: String(row.id), label: row.value }));
+    }
+
+    function getFieldOptions(key) {
+      if (key === "frequency") {
+        return dataset.frequency.map((item) => ({ value: item, label: item }));
+      }
+      if (key === "voltage") return getVoltageOptions();
+      if (key === "phase") return getPhaseOptions();
+      if (key === "engine_brand") return getEngineBrands();
+      if (key === "engine_model") return getEngineModels();
+      if (key === "generator_brand") return getGeneratorBrands();
+      if (key === "generator_model") return getGeneratorModels();
+      if (key === "generator_tank") return getTankOptions();
+      return getSimpleOptions(key);
+    }
+
+    function resetDependents(changedKey) {
+      if (changedKey === "frequency") {
+        state.voltage = "";
+        state.engine_brand = "";
+        state.engine_model = "";
+        state.generator_brand = "";
+        state.generator_model = "";
+        state.generator_tank = "";
+      }
+      if (changedKey === "engine_brand") {
+        state.engine_model = "";
+      }
+      if (changedKey === "generator_brand") {
+        state.generator_model = "";
+        state.generator_tank = "";
+      }
+      if (changedKey === "generator_model") {
+        state.generator_tank = "";
+      }
+    }
+
+    function getSelectedOption(key) {
+      const options = getFieldOptions(key);
+      const hit = options.find((item) => item.value === state[key]);
+      return hit || null;
+    }
+
+    function calcTotal() {
+      let total = 0;
+      ["engine_model", "generator_model", "generator_tank", "control_system", "switch", "base", "battery", "silencer", "elbow"].forEach((key) => {
+        const selected = getSelectedOption(key);
+        if (selected && typeof selected.price === "number") {
+          total += selected.price;
+        }
+      });
+      return total;
+    }
+
+    function render() {
+      formEl.innerHTML = "";
+
+      fields.forEach((field) => {
+        const row = document.createElement("div");
+        row.className = "grid";
+
+        const label = document.createElement("label");
+        label.className = "field-label";
+        label.textContent = field.label;
+
+        const select = document.createElement("select");
+        buildOptions(select, getFieldOptions(field.key), state[field.key]);
+        select.addEventListener("change", () => {
+          state[field.key] = select.value;
+          resetDependents(field.key);
+          render();
+        });
+
+        selectMap[field.key] = select;
+        row.appendChild(label);
+        row.appendChild(select);
+        formEl.appendChild(row);
+      });
+
+      const footer = document.createElement("div");
+      footer.className = "footer";
+      const text = document.createElement("span");
+      text.textContent = "累计总价";
+      const total = document.createElement("span");
+      total.className = "total";
+      total.textContent = formatMoney(calcTotal());
+      footer.appendChild(text);
+      footer.appendChild(total);
+      formEl.appendChild(footer);
+    }
+
+    async function fetchTable(name) {
+      const res = await fetch(`/api/table?name=${encodeURIComponent(name)}`);
+      if (!res.ok) throw new Error(`读取 ${name} 失败`);
+      const payload = await res.json();
+      return payload.rows || [];
+    }
+
+    async function init() {
+      formEl.innerHTML = "<div class=\"status\">加载中...</div>";
+      try {
+        const [
+          meta,
+          voltage,
+          phase,
+          engine,
+          generator,
+          generatorTank,
+          controlSystem,
+          switchRows,
+          base,
+          battery,
+          silencer,
+          elbow,
+        ] = await Promise.all([
+          fetch("/api/meta").then((res) => res.json()),
+          fetchTable("voltage"),
+          fetchTable("phase"),
+          fetchTable("engine"),
+          fetchTable("generator"),
+          fetchTable("generator_tank"),
+          fetchTable("control_system"),
+          fetchTable("switch"),
+          fetchTable("base"),
+          fetchTable("battery"),
+          fetchTable("silencer"),
+          fetchTable("elbow"),
+        ]);
+
+        dataset = {
+          ...dataset,
+          frequency: (meta.frequency || []).slice(),
+          voltage,
+          phase,
+          engine,
+          generator,
+          generator_tank: generatorTank,
+          control_system: controlSystem,
+          switch: switchRows,
+          base,
+          battery,
+          silencer,
+          elbow,
+        };
+
+        render();
+      } catch (err) {
+        formEl.innerHTML = `<div class=\"status\">${err.message}</div>`;
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
