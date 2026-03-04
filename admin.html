@@ -116,6 +116,15 @@
       font-size: 13px;
       font-family: inherit;
     }
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    input[type="number"] {
+      -moz-appearance: textfield;
+      appearance: textfield;
+    }
     .row-actions {
       display: flex;
       gap: 6px;
@@ -145,6 +154,42 @@
       text-align: center;
       padding: 20px 0;
       color: var(--muted);
+    }
+    .generator-subrow > td {
+      background: #fcf7ee;
+      padding: 10px 8px;
+    }
+    .sub-block {
+      border: 1px dashed #dbcbb3;
+      border-radius: 10px;
+      padding: 10px;
+      background: #fffaf2;
+    }
+    .sub-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .sub-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .sub-table th,
+    .sub-table td {
+      border-bottom: 1px solid #eadfcf;
+      padding: 6px;
+      text-align: left;
+    }
+    .sub-empty {
+      color: var(--muted);
+      text-align: center;
+      padding: 10px 0;
+      font-size: 12px;
     }
     @media (max-width: 900px) {
       header {
@@ -324,10 +369,9 @@
           input = createSelect(options, row[col.key] ? String(row[col.key]) : options[0]?.value || "");
         } else {
           input = document.createElement("input");
-          input.type = col.type === "price" ? "number" : "text";
+          input.type = "text";
           if (col.type === "price") {
-            input.step = "0.01";
-            input.min = "0";
+            input.inputMode = "decimal";
           }
           input.value = row[col.key] != null ? row[col.key] : "";
         }
@@ -408,6 +452,12 @@
       status.className = "status";
       status.textContent = "";
 
+      function collectDraftRows() {
+        return Array.from(tbody.querySelectorAll("tr"))
+          .filter((tr) => tr._inputs)
+          .map((tr) => readRowValues(table, tr._inputs));
+      }
+
       function renderRows(currentRows) {
         tbody.innerHTML = "";
         if (!currentRows.length) {
@@ -435,7 +485,9 @@
           delBtn.className = "warn";
           delBtn.textContent = "删除";
           delBtn.addEventListener("click", () => {
-            rows.splice(index, 1);
+            const draftRows = collectDraftRows();
+            draftRows.splice(index, 1);
+            rows = draftRows;
             renderRows(rows);
           });
           if (!table.readonly) {
@@ -452,6 +504,7 @@
 
       if (!table.readonly) {
         addBtn.addEventListener("click", () => {
+          rows = collectDraftRows();
           rows.push({});
           renderRows(rows);
         });
@@ -467,9 +520,7 @@
           }
         });
         saveBtn.addEventListener("click", async () => {
-          const tableRows = Array.from(tbody.querySelectorAll("tr"))
-            .filter((tr) => tr._inputs)
-            .map((tr) => readRowValues(table, tr._inputs));
+          const tableRows = collectDraftRows();
           status.textContent = "保存中...";
           try {
             const result = await saveTable(table.key, tableRows);
@@ -491,6 +542,340 @@
       return card;
     }
 
+    function renderGeneratorWithTankCard(generatorTable, generatorRows, tankTable, tankRows) {
+      const card = document.createElement("section");
+      card.className = "card";
+
+      const header = document.createElement("header");
+      const title = document.createElement("h2");
+      title.textContent = generatorTable.label;
+      header.appendChild(title);
+      const note = document.createElement("div");
+      note.className = "meta";
+      note.textContent = "每条发电机下方可直接维护其水箱子类。";
+      header.appendChild(note);
+      card.appendChild(header);
+
+      const toolbar = document.createElement("div");
+      toolbar.className = "toolbar";
+      const addBtn = document.createElement("button");
+      addBtn.textContent = "新增发电机";
+      addBtn.className = "secondary";
+      const saveBtn = document.createElement("button");
+      saveBtn.textContent = "保存发电机及水箱";
+      const reloadBtn = document.createElement("button");
+      reloadBtn.textContent = "重新加载";
+      reloadBtn.className = "secondary";
+      toolbar.appendChild(addBtn);
+      toolbar.appendChild(saveBtn);
+      toolbar.appendChild(reloadBtn);
+      card.appendChild(toolbar);
+
+      const tableEl = document.createElement("table");
+      const thead = document.createElement("thead");
+      const headRow = document.createElement("tr");
+      generatorTable.columns.forEach((col) => {
+        const th = document.createElement("th");
+        th.textContent = col.label;
+        headRow.appendChild(th);
+      });
+      const thAction = document.createElement("th");
+      thAction.textContent = "操作";
+      headRow.appendChild(thAction);
+      thead.appendChild(headRow);
+      tableEl.appendChild(thead);
+
+      const tbody = document.createElement("tbody");
+      tableEl.appendChild(tbody);
+      card.appendChild(tableEl);
+
+      const status = document.createElement("div");
+      status.className = "status";
+      card.appendChild(status);
+
+      const tankColumns = tankTable.columns.filter((col) => col.key !== "generator_id");
+
+      function collectGeneratorDrafts() {
+        return Array.from(tbody.querySelectorAll("tr"))
+          .filter((tr) => tr._inputs)
+          .map((tr) => readRowValues(generatorTable, tr._inputs));
+      }
+
+      function collectTankDrafts() {
+        return Array.from(tbody.querySelectorAll("tr"))
+          .filter((tr) => tr._tankInputs)
+          .map((tr) => {
+            const values = {};
+            tankColumns.forEach((col) => {
+              values[col.key] = tr._tankInputs[col.key].value;
+            });
+            const generatorDraft = collectGeneratorDrafts()[tr._generatorIndex];
+            let generatorId = generatorDraft?.id;
+            if (generatorId == null) {
+              const generatorData = generatorRows[tr._generatorIndex];
+              generatorId = generatorData?.id;
+            }
+            return generatorId == null
+              ? null
+              : {
+                  generator_id: String(generatorId),
+                  ...values,
+                };
+          })
+          .filter(Boolean);
+      }
+
+      function createTankInput(col, value) {
+        const input = document.createElement("input");
+        input.type = "text";
+        if (col.type === "price") {
+          input.inputMode = "decimal";
+        }
+        input.value = value != null ? value : "";
+        return input;
+      }
+
+      function renderRows() {
+        tbody.innerHTML = "";
+        if (!generatorRows.length) {
+          const emptyRow = document.createElement("tr");
+          const td = document.createElement("td");
+          td.colSpan = generatorTable.columns.length + 1;
+          td.className = "empty";
+          td.textContent = "暂无发电机数据";
+          emptyRow.appendChild(td);
+          tbody.appendChild(emptyRow);
+          return;
+        }
+
+        generatorRows.forEach((generatorRow, index) => {
+          const generatorId = generatorRow.id;
+          const mainTr = document.createElement("tr");
+          const inputs = buildRowInputs(generatorTable, generatorRow);
+          generatorTable.columns.forEach((col) => {
+            const td = document.createElement("td");
+            td.appendChild(inputs[col.key]);
+            mainTr.appendChild(td);
+          });
+          const actionTd = document.createElement("td");
+          const actions = document.createElement("div");
+          actions.className = "row-actions";
+          const delBtn = document.createElement("button");
+          delBtn.className = "warn";
+          delBtn.textContent = "删除";
+          delBtn.addEventListener("click", () => {
+            const draftGenerators = collectGeneratorDrafts();
+            const draftTanks = collectTankDrafts();
+            const removed = draftGenerators.splice(index, 1)[0];
+            generatorRows = draftGenerators;
+            if (removed && removed.id != null) {
+              tankRows = draftTanks.filter((item) => String(item.generator_id) !== String(removed.id));
+            } else {
+              tankRows = draftTanks;
+            }
+            renderRows();
+          });
+          actions.appendChild(delBtn);
+          actionTd.appendChild(actions);
+          mainTr.appendChild(actionTd);
+          mainTr._inputs = inputs;
+          mainTr._generatorIndex = index;
+          tbody.appendChild(mainTr);
+
+          const subTr = document.createElement("tr");
+          subTr.className = "generator-subrow";
+          const subTd = document.createElement("td");
+          subTd.colSpan = generatorTable.columns.length + 1;
+          const subBlock = document.createElement("div");
+          subBlock.className = "sub-block";
+
+          const subTitle = document.createElement("div");
+          subTitle.className = "sub-title";
+          const subLabel = document.createElement("span");
+          subLabel.textContent = `水箱子类（发电机第 ${index + 1} 条）`;
+          subTitle.appendChild(subLabel);
+
+          if (generatorId == null) {
+            const tip = document.createElement("span");
+            tip.textContent = "请先保存该发电机，再添加水箱";
+            subTitle.appendChild(tip);
+            subBlock.appendChild(subTitle);
+          } else {
+            const addTankBtn = document.createElement("button");
+            addTankBtn.textContent = "新增水箱";
+            addTankBtn.className = "secondary";
+            addTankBtn.addEventListener("click", () => {
+              generatorRows = collectGeneratorDrafts();
+              tankRows = collectTankDrafts();
+              tankRows.push({
+                generator_id: String(generatorId),
+                tank_value: "",
+                price: "",
+              });
+              renderRows();
+            });
+            subTitle.appendChild(addTankBtn);
+            subBlock.appendChild(subTitle);
+
+            const subTable = document.createElement("table");
+            subTable.className = "sub-table";
+            const subHead = document.createElement("thead");
+            const subHeadRow = document.createElement("tr");
+            tankColumns.forEach((col) => {
+              const th = document.createElement("th");
+              th.textContent = col.label;
+              subHeadRow.appendChild(th);
+            });
+            const subActionHead = document.createElement("th");
+            subActionHead.textContent = "操作";
+            subHeadRow.appendChild(subActionHead);
+            subHead.appendChild(subHeadRow);
+            subTable.appendChild(subHead);
+
+            const subBody = document.createElement("tbody");
+            const linkedTanks = tankRows.filter((item) => String(item.generator_id) === String(generatorId));
+            if (!linkedTanks.length) {
+              const emptyTankRow = document.createElement("tr");
+              const td = document.createElement("td");
+              td.colSpan = tankColumns.length + 1;
+              td.className = "sub-empty";
+              td.textContent = "暂无水箱数据";
+              emptyTankRow.appendChild(td);
+              subBody.appendChild(emptyTankRow);
+            } else {
+              linkedTanks.forEach((tankRow) => {
+                const tankTr = document.createElement("tr");
+                const tankInputs = {};
+                tankColumns.forEach((col) => {
+                  const td = document.createElement("td");
+                  const input = createTankInput(col, tankRow[col.key]);
+                  tankInputs[col.key] = input;
+                  td.appendChild(input);
+                  tankTr.appendChild(td);
+                });
+                const tankActionTd = document.createElement("td");
+                const tankActions = document.createElement("div");
+                tankActions.className = "row-actions";
+                const delTankBtn = document.createElement("button");
+                delTankBtn.className = "warn";
+                delTankBtn.textContent = "删除";
+                delTankBtn.addEventListener("click", () => {
+                  generatorRows = collectGeneratorDrafts();
+                  const draftTanks = collectTankDrafts();
+                  const currentTank = {
+                    generator_id: String(generatorId),
+                    ...Object.fromEntries(
+                      tankColumns.map((col) => [col.key, tankInputs[col.key].value])
+                    ),
+                  };
+                  let removed = false;
+                  tankRows = draftTanks.filter((item) => {
+                    if (removed) return true;
+                    const same = tankColumns.every(
+                      (col) => String(item[col.key]) === String(currentTank[col.key])
+                    ) && String(item.generator_id) === String(currentTank.generator_id);
+                    if (same) {
+                      removed = true;
+                      return false;
+                    }
+                    return true;
+                  });
+                  renderRows();
+                });
+                tankActions.appendChild(delTankBtn);
+                tankActionTd.appendChild(tankActions);
+                tankTr.appendChild(tankActionTd);
+                tankTr._tankInputs = tankInputs;
+                tankTr._generatorIndex = index;
+                subBody.appendChild(tankTr);
+              });
+            }
+            subTable.appendChild(subBody);
+            subBlock.appendChild(subTable);
+          }
+
+          subTd.appendChild(subBlock);
+          subTr.appendChild(subTd);
+          tbody.appendChild(subTr);
+        });
+      }
+
+      renderRows();
+
+      addBtn.addEventListener("click", () => {
+        generatorRows = collectGeneratorDrafts();
+        tankRows = collectTankDrafts();
+        generatorRows.push({});
+        renderRows();
+      });
+
+      reloadBtn.addEventListener("click", async () => {
+        status.textContent = "重新加载中...";
+        try {
+          const [generatorPayload, tankPayload] = await Promise.all([
+            fetchTable(generatorTable.key),
+            fetchTable(tankTable.key),
+          ]);
+          generatorRows = generatorPayload.rows || [];
+          tankRows = tankPayload.rows || [];
+          renderRows();
+          status.textContent = "已重新加载";
+        } catch (err) {
+          status.textContent = err.message;
+        }
+      });
+
+      saveBtn.addEventListener("click", async () => {
+        status.textContent = "保存中...";
+        try {
+          const generatorDrafts = Array.from(tbody.querySelectorAll("tr"))
+            .filter((tr) => tr._inputs)
+            .map((tr) => ({
+              index: tr._generatorIndex,
+              values: readRowValues(generatorTable, tr._inputs),
+            }));
+          await saveTable(generatorTable.key, generatorDrafts.map((item) => item.values));
+          await fetchMeta();
+          const freshGeneratorsPayload = await fetchTable(generatorTable.key);
+          const freshGenerators = freshGeneratorsPayload.rows || [];
+
+          const tankDrafts = Array.from(tbody.querySelectorAll("tr"))
+            .filter((tr) => tr._tankInputs)
+            .map((tr) => {
+              const values = {};
+              tankColumns.forEach((col) => {
+                values[col.key] = tr._tankInputs[col.key].value;
+              });
+              return { generatorIndex: tr._generatorIndex, values };
+            });
+          const tankPayload = tankDrafts
+            .map((item) => {
+              const generator = freshGenerators[item.generatorIndex];
+              if (!generator || generator.id == null) return null;
+              return {
+                generator_id: String(generator.id),
+                ...item.values,
+              };
+            })
+            .filter(Boolean);
+          const tankResult = await saveTable(tankTable.key, tankPayload);
+
+          const [generatorPayload, tankRowsPayload] = await Promise.all([
+            fetchTable(generatorTable.key),
+            fetchTable(tankTable.key),
+          ]);
+          generatorRows = generatorPayload.rows || [];
+          tankRows = tankRowsPayload.rows || [];
+          renderRows();
+          status.textContent = `保存成功，发电机 ${generatorRows.length} 条，水箱写入 ${tankResult.inserted} 行`;
+        } catch (err) {
+          status.textContent = `保存失败：${err.message}`;
+        }
+      });
+
+      return card;
+    }
+
     async function init() {
       app.innerHTML = "";
       try {
@@ -499,7 +884,27 @@
         app.textContent = "无法读取元数据，请确认服务已启动。";
         return;
       }
+
+      const generatorTable = TABLES.find((table) => table.key === "generator");
+      const tankTable = TABLES.find((table) => table.key === "generator_tank");
+
       for (const table of TABLES) {
+        if (table.key === "generator_tank") continue;
+        if (table.key === "generator" && generatorTable && tankTable) {
+          const [generatorPayload, tankPayload] = await Promise.all([
+            fetchTable(generatorTable.key),
+            fetchTable(tankTable.key),
+          ]);
+          app.appendChild(
+            renderGeneratorWithTankCard(
+              generatorTable,
+              generatorPayload.rows || [],
+              tankTable,
+              tankPayload.rows || []
+            )
+          );
+          continue;
+        }
         const payload = await fetchTable(table.key);
         const rows = payload.rows || [];
         app.appendChild(renderTableCard(table, rows));
